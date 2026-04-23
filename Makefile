@@ -1,14 +1,16 @@
+PYTHON ?= python3
+
 .PHONY: help setup dev docker-build docker-run clean
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-15s %s\n", $$1, $$2}'
 
 setup: ## Create venv and install dependencies
-	python -m venv .venv
-	.venv/Scripts/pip install -r requirements.txt
+	$(PYTHON) -m venv .venv
+	.venv/bin/pip install -r requirements.txt
 
 dev: ## Start dev server with reload
-	python -m uvicorn src.backend.main:app --reload --host 0.0.0.0 --port 8001
+	$(PYTHON) -m uvicorn src.backend.main:app --reload --host 0.0.0.0 --port 8001
 
 docker-build: ## Build Docker image
 	docker build -t wc-simulator:latest .
