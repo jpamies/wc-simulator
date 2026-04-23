@@ -4,10 +4,72 @@ Tournament engine — manages standings, bracket progression, and knockout draws
 FIFA World Cup 2026 format:
   - 48 teams in 12 groups of 4
   - Top 2 from each group + 8 best 3rd-place teams → Round of 32
-  - R32 → R16 → QF → SF → Final
+  - R32 → R16 → QF → SF → 3rd place + Final
+
+Bracket is deterministic (FIFA rules):
+  - R32 match slots are predefined (1A vs 2B, 1E vs 3rd, etc.)
+  - 3rd-place assignment depends on which 8 of 12 groups qualify
+  - R16/QF/SF/Final follow fixed winner-of-match pairings
 """
 
 from src.backend.database import get_db
+
+
+# ---------------------------------------------------------------------------
+# FIFA bracket definitions
+# ---------------------------------------------------------------------------
+
+# R32 match slots: match_id → (home_ref, away_ref)
+# home_ref/away_ref are "1A", "2B", "3ABCDF", etc. from calendar.json.
+
+# R16 bracket: match_id → (home = winner of match X, away = winner of match Y)
+R16_BRACKET = {
+    "M89": ("M74", "M77"),
+    "M90": ("M73", "M75"),
+    "M91": ("M76", "M78"),
+    "M92": ("M79", "M80"),
+    "M93": ("M83", "M84"),
+    "M94": ("M81", "M82"),
+    "M95": ("M86", "M88"),
+    "M96": ("M85", "M87"),
+}
+
+# QF bracket
+QF_BRACKET = {
+    "M97": ("M89", "M90"),
+    "M98": ("M93", "M94"),
+    "M99": ("M91", "M92"),
+    "M100": ("M95", "M96"),
+}
+
+# SF bracket
+SF_BRACKET = {
+    "M101": ("M97", "M98"),
+    "M102": ("M99", "M100"),
+}
+
+# 3rd place match (losers of semis)
+THIRD_PLACE = {
+    "M103": ("M101", "M102"),  # losers
+}
+
+# Final (winners of semis)
+FINAL_BRACKET = {
+    "M104": ("M101", "M102"),  # winners
+}
+
+# 3rd-place slot eligible groups (from calendar references)
+# M74 away = "3ABCDF" means the 3rd-place team from one of groups A,B,C,D,F
+THIRD_PLACE_SLOTS = {
+    "M74": set("ABCDF"),
+    "M77": set("CDFGH"),
+    "M79": set("CEFHI"),
+    "M80": set("EHIJK"),
+    "M81": set("BEFIJ"),
+    "M82": set("AEHIJ"),
+    "M85": set("EFGIJ"),
+    "M87": set("DEIJL"),
+}
 
 
 async def recalculate_group_standings():
@@ -130,9 +192,11 @@ def _get_winner(match: dict) -> str | None:
 async def resolve_r32_bracket():
     """
     Resolve the Round of 32 bracket by filling in the actual teams
-    based on group standings. The R32 matches already exist from the
-    calendar with placeholder names like "1A", "2B", "3ABCDF".
-    This function resolves those to actual country codes.
+    based on group standings.
+
+    R32 matches already exist from the calendar with placeholder names
+    like "1A", "2B", "3ABCDF". This function resolves those to actual
+    country codes using group standings + FIFA 3rd-place assignment rules.
     """
     standings = await get_group_standings()
     best_thirds = await get_best_third_place_teams()
@@ -141,17 +205,25 @@ async def resolve_r32_bracket():
         teams = standings.get(group, [])
         return teams[pos]["country_code"] if len(teams) > pos else None
 
-    # Build resolver for bracket references
-    # "1A" = 1st in group A, "2B" = 2nd in group B
-    # "3ABCDF" = best 3rd from groups A,B,C,D,F (FIFA decides which one)
+    # Build resolver for 1st and 2nd place references
     resolver: dict[str, str | None] = {}
     for letter in "ABCDEFGHIJKL":
         resolver[f"1{letter}"] = get_nth(letter, 0)
         resolver[f"2{letter}"] = get_nth(letter, 1)
 
-    # For 3rd-place references, assign best available thirds
-    # The actual FIFA matching is complex; we simplify by assigning in order
-    third_pool = list(best_thirds)
+    # Determine which groups' 3rd-place teams qualified
+    qualifying_groups = set()
+    third_by_group: dict[str, str] = {}  # group_letter → country_code
+    for code in best_thirds:
+        for group, teams in standings.items():
+            if len(teams) >= 3 and teams[2]["country_code"] == code:
+                qualifying_groups.add(group)
+                third_by_group[group] = code
+                break
+
+    # Assign 3rd-place teams to R32 slots using constraint satisfaction
+    # Each slot has eligible groups; we must find a valid assignment
+    third_assignment = _assign_third_place_teams(qualifying_groups, third_by_group)
 
     db = await get_db()
     try:
@@ -166,21 +238,23 @@ async def resolve_r32_bracket():
             home_ref = m["home_team"]
             away_ref = m["away_team"]
 
-            home_code = resolver.get(home_ref)
-            away_code = None
+            # Resolve home
+            if home_ref in resolver:
+                home_code = resolver[home_ref]
+            elif home_ref.startswith("3"):
+                home_code = third_assignment.get(m["id"])
+            else:
+                home_code = None
 
+            # Resolve away
             if away_ref in resolver:
                 away_code = resolver[away_ref]
-            elif away_ref.startswith("3") and third_pool:
-                # 3rd-place team — assign next available from pool
-                away_code = third_pool.pop(0)
-
-            # Also try home as 3rd place
-            if home_code is None and home_ref.startswith("3") and third_pool:
-                home_code = third_pool.pop(0)
+            elif away_ref.startswith("3"):
+                away_code = third_assignment.get(m["id"])
+            else:
+                away_code = None
 
             if home_code and away_code:
-                # Look up team names
                 home_row = await db.execute_fetchall(
                     "SELECT name FROM countries WHERE code = ?", (home_code,)
                 )
@@ -206,81 +280,93 @@ async def resolve_r32_bracket():
         await db.close()
 
 
+def _assign_third_place_teams(
+    qualifying_groups: set[str],
+    third_by_group: dict[str, str],
+) -> dict[str, str]:
+    """
+    Assign qualifying 3rd-place teams to R32 match slots using
+    backtracking constraint satisfaction.
+
+    Each slot (match ID) can only receive a 3rd from its eligible groups.
+    Each 3rd-place team can only be used once.
+
+    Returns dict of match_id → country_code.
+    """
+    slots = list(THIRD_PLACE_SLOTS.keys())
+    assignment: dict[str, str] = {}
+    used_groups: set[str] = set()
+
+    # Sort slots by number of eligible qualifying groups (most constrained first)
+    def eligible_count(slot: str) -> int:
+        return len(THIRD_PLACE_SLOTS[slot] & qualifying_groups - used_groups)
+
+    def backtrack(idx: int) -> bool:
+        if idx == len(slots):
+            return True
+        # Re-sort remaining slots by most constrained
+        remaining = slots[idx:]
+        remaining.sort(key=eligible_count)
+        slots[idx:] = remaining
+
+        slot = slots[idx]
+        eligible = THIRD_PLACE_SLOTS[slot] & qualifying_groups - used_groups
+        for group in sorted(eligible):
+            used_groups.add(group)
+            assignment[slot] = third_by_group[group]
+            if backtrack(idx + 1):
+                return True
+            used_groups.discard(group)
+            del assignment[slot]
+        return False
+
+    backtrack(0)
+    return assignment
+
+
 async def resolve_knockout_round(current_phase: str):
     """
-    Fill in the next knockout round's teams from the current round's winners.
-    The matchday and match slots already exist in the calendar.
+    Fill in the next knockout round's teams based on the FIFA bracket.
+
+    Uses the fixed bracket mappings (R16_BRACKET, QF_BRACKET, etc.)
+    to determine which winners/losers feed into which match slots.
 
     Phase progression: r32 → r16 → quarter → semi → final
-    For semi → final: losers go to 3rd place match (first slot), winners to final (second slot).
     """
-    phase_to_next_matchday = {
-        "r32": "R16",
-        "r16": "QF",
-        "quarter": "SF",
-        "semi": "FINAL",
-    }
-
-    next_matchday_id = phase_to_next_matchday.get(current_phase)
-    if not next_matchday_id:
+    if current_phase == "r32":
+        bracket = R16_BRACKET
+        use_winners = True
+    elif current_phase == "r16":
+        bracket = QF_BRACKET
+        use_winners = True
+    elif current_phase == "quarter":
+        bracket = SF_BRACKET
+        use_winners = True
+    elif current_phase == "semi":
+        # Semi produces both 3rd place match (losers) and final (winners)
+        return await _resolve_semi_to_final()
+    else:
         return []
 
     db = await get_db()
     try:
-        # Get finished matches of current phase ordered by match number
-        matches = await db.execute_fetchall("""
-            SELECT m.id, m.home_code, m.away_code, m.match_number,
-                   m.score_home, m.score_away,
-                   m.penalty_home, m.penalty_away
-            FROM matches m
-            JOIN matchdays md ON m.matchday_id = md.id
-            WHERE md.phase = ? AND m.status = 'finished'
-            ORDER BY m.match_number ASC
-        """, (current_phase,))
-
-        # Get next round match slots
-        next_matches = await db.execute_fetchall("""
-            SELECT id, match_number FROM matches
-            WHERE matchday_id = ?
-            ORDER BY match_number ASC
-        """, (next_matchday_id,))
-
-        if current_phase == "semi":
-            # Special handling: slot 0 = 3rd place (losers), slot 1 = final (winners)
-            winners = []
-            losers = []
-            for m in matches:
-                w = _get_winner(m)
-                if w:
-                    winners.append(w)
-                    loser = m["away_code"] if w == m["home_code"] else m["home_code"]
-                    losers.append(loser)
-
-            pairings = []
-            if len(losers) >= 2 and len(next_matches) >= 1:
-                pairings.append((losers[0], losers[1]))      # 3rd place match
-            if len(winners) >= 2 and len(next_matches) >= 2:
-                pairings.append((winners[0], winners[1]))     # Final
-        else:
-            winners = []
-            for m in matches:
-                w = _get_winner(m)
-                if w:
-                    winners.append(w)
-
-            if len(winners) < 2:
-                return []
-
-            # Pair winners: 1v2, 3v4, etc.
-            pairings = [(winners[i], winners[i + 1])
-                        for i in range(0, len(winners) - 1, 2)]
-
         resolved = []
-        for i, (home_code, away_code) in enumerate(pairings):
-            if i >= len(next_matches):
-                break
+        for next_match_id, (source_a_id, source_b_id) in bracket.items():
+            # Get source matches
+            source_a = await db.execute_fetchall(
+                "SELECT * FROM matches WHERE id = ?", (source_a_id,)
+            )
+            source_b = await db.execute_fetchall(
+                "SELECT * FROM matches WHERE id = ?", (source_b_id,)
+            )
+            if not source_a or not source_b:
+                continue
 
-            match_id = next_matches[i]["id"]
+            home_code = _get_winner(dict(source_a[0]))
+            away_code = _get_winner(dict(source_b[0]))
+
+            if not home_code or not away_code:
+                continue
 
             home_row = await db.execute_fetchall(
                 "SELECT name FROM countries WHERE code = ?", (home_code,)
@@ -295,11 +381,72 @@ async def resolve_knockout_round(current_phase: str):
                 UPDATE matches SET home_code = ?, away_code = ?,
                     home_team = ?, away_team = ?
                 WHERE id = ?
-            """, (home_code, away_code, home_name, away_name, match_id))
+            """, (home_code, away_code, home_name, away_name, next_match_id))
             resolved.append({
-                "id": match_id, "home": home_code, "away": away_code,
+                "id": next_match_id, "home": home_code, "away": away_code,
                 "home_name": home_name, "away_name": away_name,
             })
+
+        await db.commit()
+        return resolved
+    finally:
+        await db.close()
+
+
+async def _resolve_semi_to_final():
+    """
+    After semis: losers → 3rd place match (M103), winners → final (M104).
+    """
+    db = await get_db()
+    try:
+        resolved = []
+
+        # 3rd place match: losers of M101 and M102
+        for next_match_id, (src_a_id, src_b_id) in THIRD_PLACE.items():
+            src_a = await db.execute_fetchall("SELECT * FROM matches WHERE id = ?", (src_a_id,))
+            src_b = await db.execute_fetchall("SELECT * FROM matches WHERE id = ?", (src_b_id,))
+            if not src_a or not src_b:
+                continue
+            a, b = dict(src_a[0]), dict(src_b[0])
+            wa, wb = _get_winner(a), _get_winner(b)
+            if not wa or not wb:
+                continue
+            # Losers
+            home_code = a["away_code"] if wa == a["home_code"] else a["home_code"]
+            away_code = b["away_code"] if wb == b["home_code"] else b["home_code"]
+
+            home_row = await db.execute_fetchall("SELECT name FROM countries WHERE code = ?", (home_code,))
+            away_row = await db.execute_fetchall("SELECT name FROM countries WHERE code = ?", (away_code,))
+            home_name = home_row[0]["name"] if home_row else home_code
+            away_name = away_row[0]["name"] if away_row else away_code
+
+            await db.execute("""
+                UPDATE matches SET home_code = ?, away_code = ?, home_team = ?, away_team = ? WHERE id = ?
+            """, (home_code, away_code, home_name, away_name, next_match_id))
+            resolved.append({"id": next_match_id, "home": home_code, "away": away_code,
+                             "home_name": home_name, "away_name": away_name})
+
+        # Final: winners of M101 and M102
+        for next_match_id, (src_a_id, src_b_id) in FINAL_BRACKET.items():
+            src_a = await db.execute_fetchall("SELECT * FROM matches WHERE id = ?", (src_a_id,))
+            src_b = await db.execute_fetchall("SELECT * FROM matches WHERE id = ?", (src_b_id,))
+            if not src_a or not src_b:
+                continue
+            wa = _get_winner(dict(src_a[0]))
+            wb = _get_winner(dict(src_b[0]))
+            if not wa or not wb:
+                continue
+
+            home_row = await db.execute_fetchall("SELECT name FROM countries WHERE code = ?", (wa,))
+            away_row = await db.execute_fetchall("SELECT name FROM countries WHERE code = ?", (wb,))
+            home_name = home_row[0]["name"] if home_row else wa
+            away_name = away_row[0]["name"] if away_row else wb
+
+            await db.execute("""
+                UPDATE matches SET home_code = ?, away_code = ?, home_team = ?, away_team = ? WHERE id = ?
+            """, (wa, wb, home_name, away_name, next_match_id))
+            resolved.append({"id": next_match_id, "home": wa, "away": wb,
+                             "home_name": home_name, "away_name": away_name})
 
         await db.commit()
         return resolved
