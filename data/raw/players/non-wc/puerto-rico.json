@@ -1,0 +1,31 @@
+{
+  "nationality": "Puerto Rico",
+  "total_players": 1,
+  "players": [
+    {
+      "player_id": 269199,
+      "short_name": "L. Antonetti",
+      "long_name": "Leandro Antonetti López",
+      "player_positions": "ST, LW",
+      "overall": 60,
+      "potential": 71,
+      "age": 22,
+      "club_name": "Estrela da Amadora",
+      "nationality_name": "Puerto Rico",
+      "value_eur": 550000,
+      "league_name": "Primeira Liga",
+      "pace": 47.0,
+      "shooting": 63.0,
+      "passing": 47.0,
+      "dribbling": 61.0,
+      "defending": 24.0,
+      "physic": 41.0,
+      "skill_moves": 3,
+      "weak_foot": 3,
+      "mentality_penalties": 75,
+      "skill_fk_accuracy": 43,
+      "club_contract_valid_until_year": 2028.0,
+      "player_face_url": "https://cdn.sofifa.net/players/269/199/26_120.png"
+    }
+  ]
+}

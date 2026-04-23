@@ -1,0 +1,31 @@
+{
+  "nationality": "Liechtenstein",
+  "total_players": 1,
+  "players": [
+    {
+      "player_id": 79376,
+      "short_name": "F. Luque-Notaro",
+      "long_name": "Fabio Antonio Luque-Notaro",
+      "player_positions": "ST",
+      "overall": 58,
+      "potential": 69,
+      "age": 19,
+      "club_name": "1. FC Schweinfurt 05",
+      "nationality_name": "Liechtenstein",
+      "value_eur": 450000,
+      "league_name": "3. Liga",
+      "pace": 80.0,
+      "shooting": 56.0,
+      "passing": 41.0,
+      "dribbling": 51.0,
+      "defending": 31.0,
+      "physic": 63.0,
+      "skill_moves": 2,
+      "weak_foot": 3,
+      "mentality_penalties": 55,
+      "skill_fk_accuracy": 27,
+      "club_contract_valid_until_year": 2028.0,
+      "player_face_url": "https://cdn.sofifa.net/players/079/376/26_120.png"
+    }
+  ]
+}

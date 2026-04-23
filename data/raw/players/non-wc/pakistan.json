@@ -1,0 +1,31 @@
+{
+  "nationality": "Pakistan",
+  "total_players": 1,
+  "players": [
+    {
+      "player_id": 74324,
+      "short_name": "A. Iqbal",
+      "long_name": "Abdullah Iqbal",
+      "player_positions": "CB",
+      "overall": 69,
+      "potential": 76,
+      "age": 22,
+      "club_name": "Mjällby AIF",
+      "nationality_name": "Pakistan",
+      "value_eur": 2600000,
+      "league_name": "Allsvenskan",
+      "pace": 68.0,
+      "shooting": 34.0,
+      "passing": 52.0,
+      "dribbling": 57.0,
+      "defending": 67.0,
+      "physic": 72.0,
+      "skill_moves": 2,
+      "weak_foot": 3,
+      "mentality_penalties": 40,
+      "skill_fk_accuracy": 36,
+      "club_contract_valid_until_year": 2028.0,
+      "player_face_url": "https://cdn.sofifa.net/players/074/324/26_120.png"
+    }
+  ]
+}

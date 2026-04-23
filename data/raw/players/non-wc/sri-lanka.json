@@ -1,0 +1,31 @@
+{
+  "nationality": "Sri Lanka",
+  "total_players": 1,
+  "players": [
+    {
+      "player_id": 262664,
+      "short_name": "C. Kammerknecht",
+      "long_name": "Claudio Matthias Kammerknecht",
+      "player_positions": "CB, RB, RM",
+      "overall": 67,
+      "potential": 71,
+      "age": 25,
+      "club_name": "Dynamo Dresden",
+      "nationality_name": "Sri Lanka",
+      "value_eur": 1300000,
+      "league_name": "2. Bundesliga",
+      "pace": 62.0,
+      "shooting": 32.0,
+      "passing": 57.0,
+      "dribbling": 57.0,
+      "defending": 66.0,
+      "physic": 75.0,
+      "skill_moves": 2,
+      "weak_foot": 3,
+      "mentality_penalties": 28,
+      "skill_fk_accuracy": 27,
+      "club_contract_valid_until_year": 2026.0,
+      "player_face_url": "https://cdn.sofifa.net/players/262/664/26_120.png"
+    }
+  ]
+}

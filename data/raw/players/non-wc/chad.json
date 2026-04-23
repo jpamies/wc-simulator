@@ -1,0 +1,31 @@
+{
+  "nationality": "Chad",
+  "total_players": 1,
+  "players": [
+    {
+      "player_id": 244685,
+      "short_name": "M. Mouandilmadji",
+      "long_name": "Marius Mouandilmadji",
+      "player_positions": "ST",
+      "overall": 73,
+      "potential": 74,
+      "age": 27,
+      "club_name": "Samsunspor",
+      "nationality_name": "Chad",
+      "value_eur": 3600000,
+      "league_name": "Süper Lig",
+      "pace": 74.0,
+      "shooting": 74.0,
+      "passing": 53.0,
+      "dribbling": 70.0,
+      "defending": 32.0,
+      "physic": 81.0,
+      "skill_moves": 3,
+      "weak_foot": 3,
+      "mentality_penalties": 76,
+      "skill_fk_accuracy": 52,
+      "club_contract_valid_until_year": 2028.0,
+      "player_face_url": "https://cdn.sofifa.net/players/244/685/26_120.png"
+    }
+  ]
+}

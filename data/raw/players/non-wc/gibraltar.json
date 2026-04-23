@@ -1,0 +1,31 @@
+{
+  "nationality": "Gibraltar",
+  "total_players": 1,
+  "players": [
+    {
+      "player_id": 74350,
+      "short_name": "J. Bartolo",
+      "long_name": "Jaiden Kamil Bartolo",
+      "player_positions": "ST",
+      "overall": 52,
+      "potential": 67,
+      "age": 19,
+      "club_name": "Wycombe Wanderers",
+      "nationality_name": "Gibraltar",
+      "value_eur": 190000,
+      "league_name": "League One",
+      "pace": 70.0,
+      "shooting": 51.0,
+      "passing": 40.0,
+      "dribbling": 52.0,
+      "defending": 21.0,
+      "physic": 49.0,
+      "skill_moves": 2,
+      "weak_foot": 3,
+      "mentality_penalties": 55,
+      "skill_fk_accuracy": 28,
+      "club_contract_valid_until_year": 2026.0,
+      "player_face_url": "https://cdn.sofifa.net/players/074/350/26_120.png"
+    }
+  ]
+}

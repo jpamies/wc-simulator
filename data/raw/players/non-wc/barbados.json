@@ -1,0 +1,31 @@
+{
+  "nationality": "Barbados",
+  "total_players": 1,
+  "players": [
+    {
+      "player_id": 277986,
+      "short_name": "T. Gale",
+      "long_name": "Thierry Mikael Gale",
+      "player_positions": "LW, ST, LM",
+      "overall": 63,
+      "potential": 71,
+      "age": 23,
+      "club_name": "Bolton Wanderers",
+      "nationality_name": "Barbados",
+      "value_eur": 1100000,
+      "league_name": "League One",
+      "pace": 81.0,
+      "shooting": 58.0,
+      "passing": 57.0,
+      "dribbling": 67.0,
+      "defending": 26.0,
+      "physic": 41.0,
+      "skill_moves": 4,
+      "weak_foot": 3,
+      "mentality_penalties": 52,
+      "skill_fk_accuracy": 42,
+      "club_contract_valid_until_year": 2029.0,
+      "player_face_url": "https://cdn.sofifa.net/players/277/986/26_120.png"
+    }
+  ]
+}

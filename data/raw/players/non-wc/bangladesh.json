@@ -1,0 +1,31 @@
+{
+  "nationality": "Bangladesh",
+  "total_players": 1,
+  "players": [
+    {
+      "player_id": 228332,
+      "short_name": "H. Choudhury",
+      "long_name": "Hamza Dewan Choudhury",
+      "player_positions": "RB, CDM, CM, CB",
+      "overall": 72,
+      "potential": 73,
+      "age": 27,
+      "club_name": "Leicester City",
+      "nationality_name": "Bangladesh",
+      "value_eur": 2500000,
+      "league_name": "Championship",
+      "pace": 64.0,
+      "shooting": 50.0,
+      "passing": 66.0,
+      "dribbling": 67.0,
+      "defending": 73.0,
+      "physic": 73.0,
+      "skill_moves": 2,
+      "weak_foot": 3,
+      "mentality_penalties": 45,
+      "skill_fk_accuracy": 54,
+      "club_contract_valid_until_year": 2027.0,
+      "player_face_url": "https://cdn.sofifa.net/players/228/332/26_120.png"
+    }
+  ]
+}

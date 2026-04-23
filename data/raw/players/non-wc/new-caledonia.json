@@ -1,0 +1,31 @@
+{
+  "nationality": "New Caledonia",
+  "total_players": 1,
+  "players": [
+    {
+      "player_id": 266858,
+      "short_name": "J. Jeno",
+      "long_name": "Jekob Abiezer Malacki Jeno",
+      "player_positions": "CDM, CM",
+      "overall": 61,
+      "potential": 65,
+      "age": 25,
+      "club_name": "Unirea Slobozia",
+      "nationality_name": "New Caledonia",
+      "value_eur": 425000,
+      "league_name": "Liga I",
+      "pace": 56.0,
+      "shooting": 42.0,
+      "passing": 53.0,
+      "dribbling": 57.0,
+      "defending": 61.0,
+      "physic": 65.0,
+      "skill_moves": 2,
+      "weak_foot": 3,
+      "mentality_penalties": 48,
+      "skill_fk_accuracy": 40,
+      "club_contract_valid_until_year": 2026.0,
+      "player_face_url": "https://cdn.sofifa.net/players/266/858/26_120.png"
+    }
+  ]
+}

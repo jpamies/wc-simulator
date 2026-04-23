@@ -1,0 +1,31 @@
+{
+  "nationality": "Afghanistan",
+  "total_players": 1,
+  "players": [
+    {
+      "player_id": 233128,
+      "short_name": "M. Kouhyar",
+      "long_name": "Qamaruddin Maziar Kouhyar",
+      "player_positions": "LM, LW",
+      "overall": 60,
+      "potential": 60,
+      "age": 27,
+      "club_name": "Notts County",
+      "nationality_name": "Afghanistan",
+      "value_eur": 250000,
+      "league_name": "League Two",
+      "pace": 76.0,
+      "shooting": 53.0,
+      "passing": 54.0,
+      "dribbling": 60.0,
+      "defending": 42.0,
+      "physic": 59.0,
+      "skill_moves": 3,
+      "weak_foot": 3,
+      "mentality_penalties": 55,
+      "skill_fk_accuracy": 41,
+      "club_contract_valid_until_year": 2026.0,
+      "player_face_url": "https://cdn.sofifa.net/players/233/128/26_120.png"
+    }
+  ]
+}

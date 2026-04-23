@@ -1,0 +1,31 @@
+{
+  "nationality": "Tajikistan",
+  "total_players": 1,
+  "players": [
+    {
+      "player_id": 274723,
+      "short_name": "K. Toirov",
+      "long_name": "Khusrav ToirovТоиров Хусрав",
+      "player_positions": "LW, RW, ST, LM",
+      "overall": 62,
+      "potential": 74,
+      "age": 20,
+      "club_name": "Shakhtar Donetsk",
+      "nationality_name": "Tajikistan",
+      "value_eur": 950000,
+      "league_name": "Premier League",
+      "pace": 69.0,
+      "shooting": 53.0,
+      "passing": 60.0,
+      "dribbling": 63.0,
+      "defending": 28.0,
+      "physic": 51.0,
+      "skill_moves": 3,
+      "weak_foot": 3,
+      "mentality_penalties": 51,
+      "skill_fk_accuracy": 33,
+      "club_contract_valid_until_year": 2027.0,
+      "player_face_url": "https://cdn.sofifa.net/players/274/723/26_120.png"
+    }
+  ]
+}

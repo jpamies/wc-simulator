@@ -1,0 +1,31 @@
+{
+  "nationality": "Somalia",
+  "total_players": 1,
+  "players": [
+    {
+      "player_id": 242419,
+      "short_name": "B. Njie",
+      "long_name": "Bilal Elmi Njie",
+      "player_positions": "LW, ST, LM",
+      "overall": 63,
+      "potential": 63,
+      "age": 27,
+      "club_name": "KFUM-Kameratene Oslo",
+      "nationality_name": "Somalia",
+      "value_eur": 500000,
+      "league_name": "Eliteserien",
+      "pace": 87.0,
+      "shooting": 58.0,
+      "passing": 51.0,
+      "dribbling": 65.0,
+      "defending": 27.0,
+      "physic": 56.0,
+      "skill_moves": 3,
+      "weak_foot": 4,
+      "mentality_penalties": 51,
+      "skill_fk_accuracy": 37,
+      "club_contract_valid_until_year": 2027.0,
+      "player_face_url": "https://cdn.sofifa.net/players/242/419/26_120.png"
+    }
+  ]
+}

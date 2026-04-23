@@ -1,0 +1,31 @@
+{
+  "nationality": "Andorra",
+  "total_players": 1,
+  "players": [
+    {
+      "player_id": 269641,
+      "short_name": "Iker Álvarez",
+      "long_name": "Iker Álvarez de Eulate Molne",
+      "player_positions": "GK",
+      "overall": 67,
+      "potential": 72,
+      "age": 23,
+      "club_name": "Córdoba CF",
+      "nationality_name": "Andorra",
+      "value_eur": 1200000,
+      "league_name": "La Liga 2",
+      "pace": NaN,
+      "shooting": NaN,
+      "passing": NaN,
+      "dribbling": NaN,
+      "defending": NaN,
+      "physic": NaN,
+      "skill_moves": 1,
+      "weak_foot": 3,
+      "mentality_penalties": 13,
+      "skill_fk_accuracy": 12,
+      "club_contract_valid_until_year": 2026.0,
+      "player_face_url": "https://cdn.sofifa.net/players/269/641/26_120.png"
+    }
+  ]
+}

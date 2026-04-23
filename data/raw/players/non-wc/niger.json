@@ -1,0 +1,31 @@
+{
+  "nationality": "Niger",
+  "total_players": 1,
+  "players": [
+    {
+      "player_id": 73502,
+      "short_name": "R. Alhassane",
+      "long_name": "Abdel Rahim Alhassane Bonkano",
+      "player_positions": "LB, LM",
+      "overall": 69,
+      "potential": 75,
+      "age": 23,
+      "club_name": "Real Oviedo",
+      "nationality_name": "Niger",
+      "value_eur": 2100000,
+      "league_name": "La Liga",
+      "pace": 83.0,
+      "shooting": 45.0,
+      "passing": 58.0,
+      "dribbling": 63.0,
+      "defending": 64.0,
+      "physic": 72.0,
+      "skill_moves": 3,
+      "weak_foot": 2,
+      "mentality_penalties": 41,
+      "skill_fk_accuracy": 39,
+      "club_contract_valid_until_year": 2027.0,
+      "player_face_url": "https://cdn.sofifa.net/players/073/502/26_120.png"
+    }
+  ]
+}

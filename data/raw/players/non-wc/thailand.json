@@ -1,0 +1,31 @@
+{
+  "nationality": "Thailand",
+  "total_players": 1,
+  "players": [
+    {
+      "player_id": 246858,
+      "short_name": "N. Mickelson",
+      "long_name": "Nicholas Mickelsonลูกโซ่ นิโคลัส เก่งเขตกิจ มิคเคลสัน",
+      "player_positions": "RB, LB, RM",
+      "overall": 63,
+      "potential": 66,
+      "age": 25,
+      "club_name": "SV Elversberg",
+      "nationality_name": "Thailand",
+      "value_eur": 575000,
+      "league_name": "2. Bundesliga",
+      "pace": 73.0,
+      "shooting": 33.0,
+      "passing": 49.0,
+      "dribbling": 59.0,
+      "defending": 58.0,
+      "physic": 68.0,
+      "skill_moves": 2,
+      "weak_foot": 4,
+      "mentality_penalties": 34,
+      "skill_fk_accuracy": 30,
+      "club_contract_valid_until_year": 2027.0,
+      "player_face_url": "https://cdn.sofifa.net/players/246/858/26_120.png"
+    }
+  ]
+}

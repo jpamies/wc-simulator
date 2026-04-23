@@ -1,0 +1,31 @@
+{
+  "nationality": "Namibia",
+  "total_players": 1,
+  "players": [
+    {
+      "player_id": 228684,
+      "short_name": "R. Nyambe",
+      "long_name": "Ryan Simasiku Nyambe",
+      "player_positions": "RB, CB, RM",
+      "overall": 67,
+      "potential": 67,
+      "age": 27,
+      "club_name": "Derby County",
+      "nationality_name": "Namibia",
+      "value_eur": 975000,
+      "league_name": "Championship",
+      "pace": 77.0,
+      "shooting": 35.0,
+      "passing": 57.0,
+      "dribbling": 65.0,
+      "defending": 64.0,
+      "physic": 72.0,
+      "skill_moves": 3,
+      "weak_foot": 3,
+      "mentality_penalties": 36,
+      "skill_fk_accuracy": 38,
+      "club_contract_valid_until_year": 2027.0,
+      "player_face_url": "https://cdn.sofifa.net/players/228/684/26_120.png"
+    }
+  ]
+}
