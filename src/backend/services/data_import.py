@@ -4,7 +4,7 @@ import json
 import math
 import os
 import random
-from src.backend.config import TRANSFERMARKT_DATA_DIR, RAW_PLAYERS_DIR, TOURNAMENT_DATA_DIR
+from src.backend.config import RAW_PLAYERS_DIR, TOURNAMENT_DATA_DIR
 from src.backend.database import get_db
 
 
@@ -65,17 +65,6 @@ TEAM_CONFEDERATIONS = {
     "POR": "UEFA", "COD": "CAF", "UZB": "AFC", "COL": "CONMEBOL",
     "ENG": "UEFA", "CRO": "UEFA", "GHA": "CAF", "PAN": "CONCACAF",
 }
-
-# Map transfermarkt JSON country names → our codes
-TRANSFERMARKT_NAME_TO_CODE = {
-    "Argentina": "ARG", "Belgium": "BEL", "Brazil": "BRA", "Colombia": "COL",
-    "Croatia": "CRO", "Denmark": "DEN", "Egypt": "EGY", "England": "ENG",
-    "France": "FRA", "Germany": "GER", "Italy": "ITA", "Japan": "JPN",
-    "Mexico": "MEX", "Morocco": "MAR", "Netherlands": "NED", "Portugal": "POR",
-    "Qatar": "QAT", "Senegal": "SEN", "Spain": "ESP", "Switzerland": "SUI",
-    "Turkey": "TUR", "Uruguay": "URU", "USA": "USA",
-}
-
 
 def get_code(team_name: str) -> str | None:
     """Resolve a team name to its country code."""

@@ -5,7 +5,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY src/ src/
-COPY data/transfermarkt/ data/transfermarkt/
+COPY data/raw/players/ data/raw/players/
 COPY data/tournament/ data/tournament/
 
 RUN mkdir -p data
