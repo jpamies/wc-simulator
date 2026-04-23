@@ -131,16 +131,21 @@ def _expected_goals(attack: float, midfield: float,
     """
     Estimate expected goals using attack + midfield possession
     vs opponent defense + GK + midfield.
+
+    The strength ratio is raised to power 3 to amplify the gap between
+    favorites and underdogs. Without this, Poisson sampling produces
+    too many upsets (e.g. France only beats Haiti ~59% instead of ~85%).
     """
     mid_ratio = midfield / max(1, midfield + opp_midfield)  # 0.0-1.0
 
     attack_factor = attack / 50.0
     def_factor = (opp_defense * 0.65 + opp_gk * 0.35) / 50.0
 
-    base_xg = 1.25  # WC average goals per team per match
+    base_xg = 1.20  # slightly below WC avg to avoid inflated scores in mismatches
+    strength_ratio = (attack_factor / def_factor) ** 3  # amplify quality gap
     possession_modifier = 0.6 + 0.8 * mid_ratio  # range ~0.6 to 1.4
 
-    return base_xg * (attack_factor / def_factor) * possession_modifier
+    return max(0.15, min(5.0, base_xg * strength_ratio * possession_modifier))
 
 
 def _sample_goals(xg: float) -> int:
