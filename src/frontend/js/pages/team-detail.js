@@ -32,7 +32,7 @@ Router.register('/team/:code', async (params) => {
           <div class="card-title">${pos} (${byPos[pos].length})</div>
           ${byPos[pos].map(p => `
             <div class="player-row">
-              <img src="${p.photo || ''}" alt="" class="player-photo" onerror="this.style.display='none'">
+              <img src="${p.photo || ''}" alt="" class="player-photo" referrerpolicy="no-referrer" onerror="this.style.display='none'">
               ${posBadge(p.position)}
               <div class="player-info">
                 <span class="player-name">${p.name}</span>

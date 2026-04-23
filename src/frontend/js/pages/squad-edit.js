@@ -80,7 +80,7 @@ function renderSquadBuilder() {
             const isSel = selected.has(p.id);
             return `
             <div class="sb-player-card ${isSel ? 'sb-selected' : ''}" onclick="toggleSquadPlayer('${p.id}')">
-              <img src="${p.photo || ''}" alt="" class="sb-player-photo" onerror="this.style.display='none'">
+              <img src="${p.photo || ''}" alt="" class="sb-player-photo" referrerpolicy="no-referrer" onerror="this.style.display='none'">
               <div class="sb-player-main">
                 <span class="sb-player-name">${p.name}</span>
                 <span class="sb-player-meta">${p.detailed_position || p.position} · ${p.club || ''}</span>
@@ -113,7 +113,7 @@ function renderSquadBuilder() {
             <div class="sb-pos-list">
               ${byPos[pos].sort((a,b) => b.strength - a.strength).map(p => `
                 <div class="sb-squad-badge" onclick="toggleSquadPlayer('${p.id}')">
-                  <img src="${p.photo || ''}" alt="" class="sb-badge-photo" onerror="this.style.display='none'">
+                  <img src="${p.photo || ''}" alt="" class="sb-badge-photo" referrerpolicy="no-referrer" onerror="this.style.display='none'">
                   <span class="sb-badge-name">${p.name}</span>
                   <span class="sb-badge-ovr">${p.strength}</span>
                   <span class="sb-badge-remove">×</span>
