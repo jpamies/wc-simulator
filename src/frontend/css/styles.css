@@ -564,3 +564,118 @@ tr:hover td { background: var(--bg-hover); }
   .sb-layout { grid-template-columns: 1fr; }
   .squads-grid { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* --- Button states --- */
+.btn-done {
+  background: var(--accent-green);
+  color: #fff;
+  opacity: 0.7;
+  cursor: default;
+}
+.btn-locked {
+  background: var(--bg-hover);
+  color: var(--text-muted);
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* --- Bracket --- */
+.bracket-container {
+  display: flex;
+  gap: 1rem;
+  overflow-x: auto;
+  padding: 1rem 0;
+  align-items: flex-start;
+}
+.bracket-half {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+.bracket-right {
+  flex-direction: row-reverse;
+}
+.bracket-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  min-width: 180px;
+  align-self: center;
+}
+.bracket-round {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  justify-content: space-around;
+  min-width: 160px;
+}
+.bracket-round-title {
+  text-align: center;
+  font-weight: 700;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  color: var(--accent-gold);
+  margin-bottom: 0.25rem;
+}
+.bracket-match {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.4rem 0.6rem;
+  cursor: pointer;
+  font-size: 0.8rem;
+  transition: border-color 0.2s;
+}
+.bracket-match:hover {
+  border-color: var(--accent-blue);
+}
+.bracket-match.empty {
+  opacity: 0.3;
+  cursor: default;
+}
+.bracket-team {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 2px 0;
+}
+.bracket-team.winner {
+  font-weight: 700;
+  color: var(--accent-green);
+}
+.bracket-score {
+  margin-left: auto;
+  font-weight: 700;
+  min-width: 1.2em;
+  text-align: right;
+}
+.bracket-vs {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.7rem;
+}
+.bracket-pen {
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 0.7rem;
+}
+.bracket-tbd {
+  color: var(--text-muted);
+  text-align: center;
+  display: block;
+}
+
+@media (max-width: 768px) {
+  .bracket-container {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .bracket-half {
+    flex-direction: column;
+  }
+  .bracket-right {
+    flex-direction: column;
+  }
+}

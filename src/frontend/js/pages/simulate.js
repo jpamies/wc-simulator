@@ -3,13 +3,30 @@ Router.register('/simulate', async () => {
   app.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
 
   try {
-    const overview = await API.get('/tournament/overview');
+    const progress = await API.get('/tournament/progress');
+
+    const gs1 = progress['GS1'] || {};
+    const gs2 = progress['GS2'] || {};
+    const gs3 = progress['GS3'] || {};
+    const r32 = progress['R32'] || {};
+    const r16 = progress['R16'] || {};
+    const qf  = progress['QF']  || {};
+    const sf  = progress['SF']  || {};
+    const fin = progress['FINAL'] || {};
+
+    const groupsDone = gs1.done && gs2.done && gs3.done;
+    const r32Resolved = r32.resolved === r32.total && r32.total > 0;
+
+    function btn(label, onclick, enabled, done) {
+      if (done) return `<button class="btn btn-done" disabled>✅ ${label}</button>`;
+      if (!enabled) return `<button class="btn btn-locked" disabled>🔒 ${label}</button>`;
+      return `<button class="btn btn-primary" onclick="${onclick}">${label}</button>`;
+    }
 
     app.innerHTML = `
       <h1 class="section-title">🎲 Simulador</h1>
       <p class="section-subtitle">
         Simula partidos individuales, fases completas o todo el torneo.
-        Los resultados reales se mantienen; solo se simulan partidos pendientes.
       </p>
 
       <div class="sim-controls">
@@ -24,21 +41,20 @@ Router.register('/simulate', async () => {
       <div class="sim-phase">
         <div class="sim-phase-title">📋 Fase de Grupos</div>
         <div class="sim-controls">
-          <button class="btn btn-primary" onclick="simMatchday('GS1')">Jornada 1</button>
-          <button class="btn btn-primary" onclick="simMatchday('GS2')">Jornada 2</button>
-          <button class="btn btn-primary" onclick="simMatchday('GS3')">Jornada 3</button>
+          ${btn('Jornada 1', "simMatchday('GS1')", true, gs1.done)}
+          ${btn('Jornada 2', "simMatchday('GS2')", gs1.done, gs2.done)}
+          ${btn('Jornada 3', "simMatchday('GS3')", gs2.done, gs3.done)}
         </div>
       </div>
 
       <div class="sim-phase">
         <div class="sim-phase-title">🏆 Eliminatorias</div>
         <div class="sim-controls">
-          <button class="btn btn-green" onclick="genBracket()">Resolver cuadro R32</button>
-          <button class="btn btn-primary" onclick="simKnockout('r32')">R32</button>
-          <button class="btn btn-primary" onclick="simKnockout('r16')">Octavos</button>
-          <button class="btn btn-primary" onclick="simKnockout('quarter')">Cuartos</button>
-          <button class="btn btn-primary" onclick="simKnockout('semi')">Semifinales</button>
-          <button class="btn btn-primary" onclick="simKnockout('final')">3er puesto + Final</button>
+          ${btn('R32', "simKnockout('r32')", r32Resolved, r32.done)}
+          ${btn('Octavos', "simKnockout('r16')", r32.done, r16.done)}
+          ${btn('Cuartos', "simKnockout('quarter')", r16.done, qf.done)}
+          ${btn('Semifinales', "simKnockout('semi')", qf.done, sf.done)}
+          ${btn('3er puesto + Final', "simKnockout('final')", sf.done, fin.done)}
         </div>
       </div>
 
@@ -69,7 +85,17 @@ async function simMatchday(matchdayId) {
     results.forEach(m => {
       logSim(`<span class="log-match">${m.home_team || m.home_code} ${m.score_home} - ${m.score_away} ${m.away_team || m.away_code}</span>`);
     });
+
+    // Auto-resolve bracket after GS3
+    if (matchdayId === 'GS3') {
+      logSim('⏳ Generando cuadro de eliminatorias...');
+      const bracket = await API.post('/simulate/generate-bracket');
+      logSim(`<span class="log-score">✅ ${bracket.count} partidos resueltos para R32</span>`);
+    }
+
     showToast(`${matchdayId}: ${results.length} partidos simulados`, 'success');
+    // Refresh buttons after short delay so log stays visible
+    setTimeout(() => location.hash = '#/simulate', 1500);
   } catch (e) {
     logSim(`❌ Error: ${e.message}`);
     showToast(e.message, 'error');
@@ -120,6 +146,7 @@ async function simKnockout(phase) {
       logSim(`<span class="log-score">→ Siguiente ronda: ${result.next_round.length} partidos generados</span>`);
     }
     showToast(`Ronda ${phase} simulada`, 'success');
+    setTimeout(() => location.hash = '#/simulate', 1500);
   } catch (e) {
     logSim(`❌ Error: ${e.message}`);
     showToast(e.message, 'error');
@@ -135,6 +162,7 @@ async function simFullTournament() {
       logSim(`<span class="log-match">${key}: ${val}</span>`);
     }
     showToast('¡Torneo simulado completo!', 'success');
+    setTimeout(() => location.hash = '#/simulate', 2000);
   } catch (e) {
     logSim(`❌ Error: ${e.message}`);
     showToast(e.message, 'error');
@@ -148,6 +176,7 @@ async function resetSim() {
     await API.post('/simulate/reset');
     logSim('<span class="log-score">✅ Simulaciones eliminadas</span>');
     showToast('Simulaciones reseteadas', 'success');
+    setTimeout(() => location.hash = '#/simulate', 1000);
   } catch (e) {
     logSim(`❌ Error: ${e.message}`);
     showToast(e.message, 'error');

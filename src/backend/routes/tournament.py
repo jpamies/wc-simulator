@@ -100,3 +100,32 @@ async def standings():
             for t in teams
         ]
     return result
+
+
+@router.get("/progress")
+async def tournament_progress():
+    """Return per-matchday/phase completion status for the simulate UI."""
+    db = await get_db()
+    try:
+        rows = await db.execute_fetchall("""
+            SELECT md.id as matchday_id, md.phase,
+                   COUNT(*) as total,
+                   SUM(CASE WHEN m.status = 'finished' THEN 1 ELSE 0 END) as finished,
+                   SUM(CASE WHEN m.home_code IS NOT NULL AND m.away_code IS NOT NULL THEN 1 ELSE 0 END) as resolved
+            FROM matchdays md
+            JOIN matches m ON m.matchday_id = md.id
+            GROUP BY md.id, md.phase
+            ORDER BY md.date ASC
+        """)
+        matchdays = {}
+        for r in rows:
+            matchdays[r["matchday_id"]] = {
+                "phase": r["phase"],
+                "total": r["total"],
+                "finished": r["finished"],
+                "resolved": r["resolved"],
+                "done": r["finished"] == r["total"],
+            }
+        return matchdays
+    finally:
+        await db.close()
