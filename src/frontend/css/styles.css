@@ -237,6 +237,10 @@ tr:hover td { background: var(--bg-hover); }
 .team-name { font-weight: 600; margin-bottom: 0.25rem; }
 .team-group { font-size: 0.8rem; color: var(--text-muted); }
 .team-players { font-size: 0.8rem; color: var(--text-secondary); }
+.team-positions { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.2rem; margin-top: 0.4rem; }
+.team-extra { display: flex; justify-content: center; gap: 0.6rem; margin-top: 0.4rem; align-items: baseline; }
+.team-ovr { font-size: 1.1rem; font-weight: 700; color: var(--accent-gold); }
+.team-val { font-size: 0.75rem; color: var(--accent-green); font-weight: 600; }
 
 /* ─── Player list ─── */
 .player-row {

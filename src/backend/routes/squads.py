@@ -22,6 +22,8 @@ class SquadOverview(BaseModel):
     defs: int = 0
     mids: int = 0
     fwds: int = 0
+    avg_strength: float = 0
+    total_value: int = 0
 
 
 @router.get("", response_model=list[SquadOverview])
@@ -44,7 +46,13 @@ async def list_squads():
                     WHERE s.country_code = c.code AND p.position = 'MID') as mids,
                    (SELECT COUNT(*) FROM squad_selections s
                     JOIN players p ON s.player_id = p.id
-                    WHERE s.country_code = c.code AND p.position = 'FWD') as fwds
+                    WHERE s.country_code = c.code AND p.position = 'FWD') as fwds,
+                   COALESCE((SELECT AVG(p.strength) FROM squad_selections s
+                    JOIN players p ON s.player_id = p.id
+                    WHERE s.country_code = c.code), 0) as avg_strength,
+                   COALESCE((SELECT SUM(p.market_value) FROM squad_selections s
+                    JOIN players p ON s.player_id = p.id
+                    WHERE s.country_code = c.code), 0) as total_value
             FROM countries c
             ORDER BY c.name
         """)
@@ -52,6 +60,7 @@ async def list_squads():
             country_code=r["code"], country_name=r["name"], flag=r["flag"],
             total_players=r["total_players"], squad_size=r["squad_size"],
             gk=r["gk"], defs=r["defs"], mids=r["mids"], fwds=r["fwds"],
+            avg_strength=round(r["avg_strength"], 1), total_value=r["total_value"],
         ) for r in rows]
     finally:
         await db.close()
