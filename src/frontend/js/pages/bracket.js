@@ -5,97 +5,102 @@ Router.register('/bracket', async () => {
   try {
     const calendar = await API.get('/tournament/calendar');
 
-    // Extract knockout matchdays
-    const phases = {};
+    const byId = {};
     for (const md of calendar) {
-      if (md.phase === 'groups') continue;
-      phases[md.id] = md;
+      for (const m of md.matches) byId[m.id] = m;
     }
 
-    const r32  = phases['R32']   || { matches: [] };
-    const r16  = phases['R16']   || { matches: [] };
-    const qf   = phases['QF']    || { matches: [] };
-    const sf   = phases['SF']    || { matches: [] };
-    const fin  = phases['FINAL'] || { matches: [] };
+    function matchBox(m) {
+      if (!m) return `
+        <div class="bk-match bk-empty">
+          <div class="bk-row"><span class="bk-name bk-tbd">TBD</span><span class="bk-sc">-</span></div>
+          <div class="bk-row"><span class="bk-name bk-tbd">TBD</span><span class="bk-sc">-</span></div>
+        </div>`;
 
-    function matchCell(m) {
-      if (!m) return '<div class="bracket-match empty"><span class="bracket-tbd">—</span></div>';
-
-      const homeName = m.home_team || m.home_code || '?';
-      const awayName = m.away_team || m.away_code || '?';
-      const homeFlag = flagImg(m.home_flag, 18);
-      const awayFlag = flagImg(m.away_flag, 18);
+      const hn = m.home_team || m.home_code || '?';
+      const an = m.away_team || m.away_code || '?';
+      const hf = flagImg(m.home_flag, 16);
+      const af = flagImg(m.away_flag, 16);
 
       if (m.status !== 'finished') {
         return `
-          <div class="bracket-match scheduled" onclick="location.hash='#/match/${m.id}'">
-            <div class="bracket-team">${homeFlag} ${homeName}</div>
-            <div class="bracket-vs">vs</div>
-            <div class="bracket-team">${awayFlag} ${awayName}</div>
+          <div class="bk-match bk-sched" onclick="location.hash='#/match/${m.id}'">
+            <div class="bk-row"><span class="bk-name">${hf} ${hn}</span><span class="bk-sc">-</span></div>
+            <div class="bk-row"><span class="bk-name">${af} ${an}</span><span class="bk-sc">-</span></div>
           </div>`;
       }
 
-      const hw = m.score_home > m.score_away ||
-                 (m.score_home === m.score_away && m.penalty_home > m.penalty_away);
-      const aw = !hw;
-      const pen = m.penalty_home != null ? ` <small>(${m.penalty_home}-${m.penalty_away}p)</small>` : '';
+      const hw = m.score_home > m.score_away || (m.score_home === m.score_away && m.penalty_home > m.penalty_away);
+      const pen = m.penalty_home != null ? `<div class="bk-pen">(${m.penalty_home}-${m.penalty_away} pen)</div>` : '';
 
       return `
-        <div class="bracket-match finished" onclick="location.hash='#/match/${m.id}'">
-          <div class="bracket-team ${hw ? 'winner' : ''}">${homeFlag} ${homeName} <span class="bracket-score">${m.score_home}</span></div>
-          <div class="bracket-team ${aw ? 'winner' : ''}">${awayFlag} ${awayName} <span class="bracket-score">${m.score_away}</span></div>
-          ${pen ? `<div class="bracket-pen">${pen}</div>` : ''}
+        <div class="bk-match bk-fin" onclick="location.hash='#/match/${m.id}'">
+          <div class="bk-row ${hw ? 'bk-w' : ''}"><span class="bk-name">${hf} ${hn}</span><span class="bk-sc">${m.score_home}</span></div>
+          <div class="bk-row ${!hw ? 'bk-w' : ''}"><span class="bk-name">${af} ${an}</span><span class="bk-sc">${m.score_away}</span></div>
+          ${pen}
         </div>`;
     }
 
-    function renderRound(title, matches) {
-      if (!matches.length) return '';
-      return `
-        <div class="bracket-round">
-          <div class="bracket-round-title">${title}</div>
-          ${matches.map(m => matchCell(m)).join('')}
-        </div>`;
-    }
+    // Left bracket: R32(8) → R16(4) → QF(2) → SF(1) → Final(1) ← SF(1) ← QF(2) ← R16(4) ← R32(8)
+    // The bracket pairs feed based on FIFA bracket:
+    // Left side feeds M89(W74,W77), M90(W73,W75), M91(W76,W78), M92(W79,W80) etc.
+    // We reorder R32 to match the bracket flow:
+    // M90 = W73 vs W75  →  so R32 pair 1: M73, then M75 (skipping — but for visual bracket,
+    //   we pair R32 matches that feed into the same R16 match)
+    const leftPairs = [
+      // R32 pairs that feed R16
+      { r32: ['M74','M77'], r16: 'M89' },
+      { r32: ['M73','M75'], r16: 'M90' },
+      { r32: ['M76','M78'], r16: 'M91' },
+      { r32: ['M79','M80'], r16: 'M92' },
+    ];
+    const rightPairs = [
+      { r32: ['M83','M84'], r16: 'M93' },
+      { r32: ['M81','M82'], r16: 'M94' },
+      { r32: ['M86','M88'], r16: 'M95' },
+      { r32: ['M85','M87'], r16: 'M96' },
+    ];
 
-    // Split R32 into left (8) and right (8) halves for bracket display
-    // Left half: M73,M74,M75,M76,M77,M78,M79,M80 → feeds into M89,M90,M91,M92 → M97,M99 → M101
-    // Right half: M81,M82,M83,M84,M85,M86,M87,M88 → feeds into M93,M94,M95,M96 → M98,M100 → M102
-    const byId = {};
-    for (const md of calendar) {
-      for (const m of md.matches) {
-        byId[m.id] = m;
+    function renderHalf(pairs, qfIds, sfId, side) {
+      const r32Col = pairs.map(p =>
+        `<div class="bk-pair">${p.r32.map(id => matchBox(byId[id])).join('')}</div>`
+      ).join('');
+
+      const r16Col = pairs.map(p => matchBox(byId[p.r16])).join('');
+      const qfCol = qfIds.map(id => matchBox(byId[id])).join('');
+      const sfCol = matchBox(byId[sfId]);
+
+      if (side === 'left') {
+        return `
+          <div class="bk-col bk-r32">${r32Col}</div>
+          <div class="bk-col bk-r16">${r16Col}</div>
+          <div class="bk-col bk-qf">${qfCol}</div>
+          <div class="bk-col bk-sf">${sfCol}</div>`;
       }
+      return `
+          <div class="bk-col bk-sf bk-right">${sfCol}</div>
+          <div class="bk-col bk-qf bk-right">${qfCol}</div>
+          <div class="bk-col bk-r16 bk-right">${r16Col}</div>
+          <div class="bk-col bk-r32 bk-right">${r32Col}</div>`;
     }
-
-    const leftR32  = ['M73','M74','M75','M76','M77','M78','M79','M80'].map(id => byId[id]);
-    const rightR32 = ['M81','M82','M83','M84','M85','M86','M87','M88'].map(id => byId[id]);
-    const leftR16  = ['M89','M90','M91','M92'].map(id => byId[id]);
-    const rightR16 = ['M93','M94','M95','M96'].map(id => byId[id]);
-    const leftQF   = ['M97','M99'].map(id => byId[id]);
-    const rightQF  = ['M98','M100'].map(id => byId[id]);
-    const leftSF   = [byId['M101']];
-    const rightSF  = [byId['M102']];
-    const finalM   = [byId['M104']];
-    const thirdM   = [byId['M103']];
 
     app.innerHTML = `
       <h1 class="section-title">🏆 Cuadro de Eliminatorias</h1>
-      <div class="bracket-container">
-        <div class="bracket-half">
-          ${renderRound('R32', leftR32)}
-          ${renderRound('Octavos', leftR16)}
-          ${renderRound('Cuartos', leftQF)}
-          ${renderRound('Semifinal', leftSF)}
+
+      <div class="bk-wrapper">
+        <div class="bk-labels">
+          <span>R32</span><span>R16</span><span>QF</span><span>SF</span>
+          <span>FINAL</span>
+          <span>SF</span><span>QF</span><span>R16</span><span>R32</span>
         </div>
-        <div class="bracket-center">
-          ${renderRound('Final', finalM)}
-          ${renderRound('3er puesto', thirdM)}
-        </div>
-        <div class="bracket-half bracket-right">
-          ${renderRound('R32', rightR32)}
-          ${renderRound('Octavos', rightR16)}
-          ${renderRound('Cuartos', rightQF)}
-          ${renderRound('Semifinal', rightSF)}
+        <div class="bk-grid">
+          ${renderHalf(leftPairs, ['M97','M99'], 'M101', 'left')}
+          <div class="bk-col bk-final">
+            ${matchBox(byId['M104'])}
+            <div class="bk-third-label">3er puesto</div>
+            ${matchBox(byId['M103'])}
+          </div>
+          ${renderHalf(rightPairs, ['M98','M100'], 'M102', 'right')}
         </div>
       </div>
     `;
