@@ -12,7 +12,10 @@ Router.register('/teams', async () => {
     squads.forEach(s => { squadMap[s.country_code] = s; });
 
     app.innerHTML = `
-      <h1 class="section-title">🏴 Selecciones</h1>
+      <div class="squads-header">
+        <h1 class="section-title">Selecciones</h1>
+        <a href="#/squads" class="btn btn-gold">Convocatorias</a>
+      </div>
       <div class="teams-grid">
         ${countries.map(c => {
           const s = squadMap[c.code];

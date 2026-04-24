@@ -30,11 +30,14 @@ Router.register('/simulate', async () => {
       </p>
 
       <div class="sim-controls">
+        <button class="btn btn-primary" onclick="simNextMatch()">
+          Siguiente partido
+        </button>
         <button class="btn btn-gold" onclick="simFullTournament()">
-          ⚡ Simular todo el torneo
+          Simular todo el torneo
         </button>
         <button class="btn btn-danger btn-sm" onclick="resetSim()">
-          🗑️ Borrar simulaciones
+          Borrar simulaciones
         </button>
       </div>
 
@@ -75,6 +78,32 @@ function logSim(msg) {
   const progress = document.getElementById('sim-progress');
   if (progress) progress.style.display = 'block';
   if (logEl) logEl.innerHTML += `<div class="log-entry">${msg}</div>`;
+}
+
+async function simNextMatch() {
+  logSim('Simulando siguiente partido...');
+  try {
+    const results = await API.post('/simulate/next-match');
+    if (results.length === 0) {
+      logSim('<span class="log-score">No hay partidos pendientes</span>');
+      showToast('No hay partidos pendientes', 'info');
+      return;
+    }
+    const m = results[0];
+    const pen = m.penalty_home != null ? ` (${m.penalty_home}-${m.penalty_away} pen)` : '';
+    logSim(`<span class="log-match">${m.home_team || m.home_code} ${m.score_home} - ${m.score_away} ${m.away_team || m.away_code}${pen}</span>`);
+    showToast(`${m.home_team || m.home_code} ${m.score_home}-${m.score_away} ${m.away_team || m.away_code}`, 'success');
+    // Refresh buttons
+    setTimeout(() => { location.hash = '#/simulate'; Router.handleRoute(); }, 1200);
+  } catch (e) {
+    if (e.message.includes('404') || e.message.includes('No scheduled')) {
+      logSim('<span class="log-score">No hay partidos pendientes</span>');
+      showToast('No hay partidos pendientes', 'info');
+    } else {
+      logSim(`Error: ${e.message}`);
+      showToast(e.message, 'error');
+    }
+  }
 }
 
 async function simMatchday(matchdayId) {

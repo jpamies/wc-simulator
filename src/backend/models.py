@@ -37,8 +37,6 @@ class PlayerOut(BaseModel):
     dribbling: Optional[int] = None
     defending: Optional[int] = None
     physic: Optional[int] = None
-    photo: Optional[str] = None
-    strength: int = 50
 
 
 # ─── Matches ───

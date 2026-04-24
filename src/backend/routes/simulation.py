@@ -153,6 +153,30 @@ async def simulate_matchday(matchday_id: str):
     return await simulate_matches(SimulateMatchesIn(matchday_id=matchday_id))
 
 
+@router.post("/next-match", response_model=list[MatchOut])
+async def simulate_next_match():
+    """Simulate the next scheduled match (by kickoff order).
+    
+    Finds the first scheduled match with resolved teams and simulates it.
+    Compatible with matchday/full-tournament simulation (those skip already-finished matches).
+    """
+    db = await get_db()
+    try:
+        rows = await db.execute_fetchall("""
+            SELECT m.id FROM matches m
+            WHERE m.status = 'scheduled' AND m.home_code IS NOT NULL AND m.away_code IS NOT NULL
+            ORDER BY m.kickoff ASC, m.match_number ASC
+            LIMIT 1
+        """)
+        if not rows:
+            raise HTTPException(404, "No scheduled matches with resolved teams")
+        match_id = rows[0]["id"]
+    finally:
+        await db.close()
+    
+    return await simulate_matches(SimulateMatchesIn(match_ids=[match_id]))
+
+
 @router.post("/group-stage", response_model=list[MatchOut])
 async def simulate_group_stage():
     """Simulate all remaining group stage matches."""

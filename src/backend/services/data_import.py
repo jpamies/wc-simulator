@@ -4,8 +4,9 @@ import json
 import math
 import os
 import random
-from src.backend.config import RAW_PLAYERS_DIR, TOURNAMENT_DATA_DIR
+from src.backend.config import TOURNAMENT_DATA_DIR
 from src.backend.database import get_db
+from src.backend.services.player_data_source import PlayerDataSourceFactory
 
 
 # Map of calendar team names → country codes (all 48 WC teams)
@@ -83,7 +84,7 @@ async def import_all():
 
     await _import_countries_from_groups()
     await _import_calendar()
-    await _import_players_from_raw()
+    await _import_players()
 
 
 async def _import_countries_from_groups():
@@ -156,99 +157,61 @@ async def _import_calendar():
         await db.close()
 
 
-# Map FIFA positions to our simplified positions
-POS_MAP = {
-    "GK": "GK",
-    "CB": "DEF", "RB": "DEF", "LB": "DEF", "RWB": "DEF", "LWB": "DEF",
-    "CDM": "MID", "CM": "MID", "CAM": "MID", "RM": "MID", "LM": "MID",
-    "RW": "FWD", "LW": "FWD", "ST": "FWD", "CF": "FWD",
-}
-
-# Map raw player nationality → our country code
-NATIONALITY_TO_CODE = {
-    "Algeria": "ALG", "Argentina": "ARG", "Australia": "AUS", "Austria": "AUT",
-    "Belgium": "BEL", "Bosnia and Herzegovina": "BIH", "Brazil": "BRA",
-    "Cabo Verde": "CPV", "Canada": "CAN", "Colombia": "COL", "Congo DR": "COD",
-    "Croatia": "CRO", "Curacao": "CUW", "Czechia": "CZE",
-    "Côte d'Ivoire": "CIV",
-    "Ecuador": "ECU", "Egypt": "EGY", "England": "ENG",
-    "France": "FRA", "Germany": "GER", "Ghana": "GHA",
-    "Haiti": "HAI", "Iran": "IRN", "Iraq": "IRQ",
-    "Japan": "JPN", "Jordan": "JOR", "Korea Republic": "KOR",
-    "Mexico": "MEX", "Morocco": "MAR",
-    "Netherlands": "NED", "New Zealand": "NZL", "Norway": "NOR",
-    "Panama": "PAN", "Paraguay": "PAR", "Portugal": "POR", "Qatar": "QAT",
-    "Saudi Arabia": "KSA", "Scotland": "SCO", "Senegal": "SEN",
-    "South Africa": "RSA", "Spain": "ESP", "Sweden": "SWE",
-    "Switzerland": "SUI", "Tunisia": "TUN", "Türkiye": "TUR",
-    "United States": "USA", "Uruguay": "URU", "Uzbekistan": "UZB",
-}
 
 
-def _map_position(positions_str: str) -> tuple[str, str]:
-    """Map FIFA positions string to (simplified_pos, detailed_pos)."""
-    primary = positions_str.split(",")[0].strip()
-    simplified = POS_MAP.get(primary, "MID")
-    return simplified, positions_str
-
-
-async def _import_players_from_raw():
-    """Import player data from data/raw/players/ JSON files."""
-    if not os.path.exists(RAW_PLAYERS_DIR):
-        print(f"⚠️  Raw players dir not found: {RAW_PLAYERS_DIR}")
+async def _import_players():
+    """Import player data using auto-detected data source.
+    
+    Attempts to load players from available data sources in priority order:
+    1. EFEM API JSON (data/raw/efeme/)
+    2. Raw players format (data/raw/players/)
+    
+    Players are converted to canonical Player objects and stored in the database.
+    """
+    try:
+        data_source = await PlayerDataSourceFactory.create_source()
+        print(f"\n[DATA] Using data source: {data_source.get_source_name()}")
+    except FileNotFoundError as e:
+        print(f"[WARN] No player data source found. Skipping player import.")
+        print(f"   {e}")
         return
-
+    
+    # Load players from the selected source
+    players = await data_source.load_all_players()
+    
+    if not players:
+        print("[WARN] No players loaded from data source")
+        return
+    
+    # Insert into database
     db = await get_db()
     try:
         imported = 0
-        for filename in sorted(os.listdir(RAW_PLAYERS_DIR)):
-            if not filename.endswith(".json"):
-                continue
-            filepath = os.path.join(RAW_PLAYERS_DIR, filename)
-            with open(filepath, "r", encoding="utf-8") as f:
-                data = json.load(f)
-
-            nationality = data["nationality"]
-            code = NATIONALITY_TO_CODE.get(nationality)
-            if not code:
-                continue
-
-            # Check country exists in DB
+        for player in players:
+            # Verify country exists in DB
             row = await db.execute_fetchall(
-                "SELECT code FROM countries WHERE code = ?", (code,)
+                "SELECT code FROM countries WHERE code = ?", (player.country_code,)
             )
             if not row:
                 continue
-
-            for p in data.get("players", []):
-                pid = f"{code}-{p['player_id']}"
-                position, detailed = _map_position(p.get("player_positions", "CM"))
-                overall = p.get("overall", 50)
-                strength = max(30, min(99, overall))
-
-                def safe_int(v):
-                    if v is None or v != v:  # NaN check
-                        return None
-                    return int(v)
-
-                await db.execute(
-                    """INSERT OR IGNORE INTO players
-                       (id, name, country_code, position, detailed_position,
-                        club, league, age, market_value, photo, strength,
-                        pace, shooting, passing, dribbling, defending, physic)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                    (pid, p.get("short_name", p.get("long_name", "Unknown")),
-                     code, position, detailed,
-                     p.get("club_name"), p.get("league_name"),
-                     p.get("age"), p.get("value_eur", 0),
-                     p.get("player_face_url"), strength,
-                     safe_int(p.get("pace")), safe_int(p.get("shooting")),
-                     safe_int(p.get("passing")), safe_int(p.get("dribbling")),
-                     safe_int(p.get("defending")), safe_int(p.get("physic"))),
-                )
-                imported += 1
-
+            
+            await db.execute(
+                """INSERT OR IGNORE INTO players
+                   (id, name, country_code, position, detailed_position,
+                    club, league, age, market_value, photo, strength,
+                    pace, shooting, passing, dribbling, defending, physic)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (player.id, player.name, player.country_code,
+                 player.position, player.detailed_position,
+                 player.club, player.league, player.age, player.market_value,
+                 player.photo_url, player.strength,
+                 player.pace, player.shooting, player.passing,
+                 player.dribbling, player.defending, player.physic),
+            )
+            imported += 1
+        
         await db.commit()
-        print(f"✅ {imported} players imported from raw data")
+        print(f"[OK] {imported} players imported from {data_source.get_source_name()}")
     finally:
         await db.close()
+

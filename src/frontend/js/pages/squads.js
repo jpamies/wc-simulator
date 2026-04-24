@@ -13,9 +13,9 @@ Router.register('/squads', async () => {
 
     app.innerHTML = `
       <div class="squads-header">
-        <h1 class="section-title">🏆 Plantillas del Mundial</h1>
+        <h1 class="section-title">Convocatorias</h1>
         <div class="squads-actions">
-          <button class="btn btn-gold" onclick="autoSelectAll()">⚡ Auto-seleccionar todas</button>
+          <button class="btn btn-gold" onclick="autoSelectAll()">Auto-seleccionar todas</button>
         </div>
       </div>
 
@@ -49,7 +49,7 @@ Router.register('/squads', async () => {
     const completedSquads = squads.filter(s => s.squad_size >= 23).length;
     const totalPlayers = squads.reduce((a, s) => a + s.squad_size, 0);
     document.getElementById('squads-summary').innerHTML = `
-      <div class="summary-stat"><span class="summary-val">${withSquad}</span><span class="summary-label">Con plantilla</span></div>
+      <div class="summary-stat"><span class="summary-val">${withSquad}</span><span class="summary-label">Con convocatoria</span></div>
       <div class="summary-stat"><span class="summary-val">${completedSquads}</span><span class="summary-label">Completas</span></div>
       <div class="summary-stat"><span class="summary-val">${totalPlayers}</span><span class="summary-label">Jugadores</span></div>
       <div class="summary-stat"><span class="summary-val">${48 - withSquad}</span><span class="summary-label">Pendientes</span></div>
@@ -60,11 +60,11 @@ Router.register('/squads', async () => {
 });
 
 async function autoSelectAll() {
-  if (!confirm('¿Auto-seleccionar las mejores plantillas para las 48 selecciones?')) return;
-  showToast('Seleccionando plantillas...', 'info');
+  if (!confirm('¿Auto-seleccionar las mejores convocatorias para las 48 selecciones?')) return;
+  showToast('Seleccionando convocatorias...', 'info');
   try {
     await API.post('/squads/auto-all');
-    showToast('48 plantillas generadas', 'success');
+    showToast('48 convocatorias generadas', 'success');
     location.hash = '#/squads';
     Router.handleRoute();
   } catch (e) {
