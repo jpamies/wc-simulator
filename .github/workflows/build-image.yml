@@ -18,6 +18,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          lfs: true
 
       - name: Set up QEMU (for ARM64 cross-build)
         uses: docker/setup-qemu-action@v3
