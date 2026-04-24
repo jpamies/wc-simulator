@@ -5,6 +5,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY src/ src/
+COPY data/raw/efeme/ data/raw/efeme/
 COPY data/tournament/ data/tournament/
 COPY scripts/ scripts/
 
