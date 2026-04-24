@@ -80,17 +80,19 @@ async def import_all():
     force_reimport = os.environ.get("WCS_FORCE_REIMPORT", "0") == "1"
     
     if force_reimport:
-        print("[DATA] WCS_FORCE_REIMPORT=1 detected, clearing player data...")
+        print("[DATA] WCS_FORCE_REIMPORT=1 detected, clearing all data...")
         db = await get_db()
         try:
+            # Delete in FK-safe order (children before parents)
             await db.execute("DELETE FROM player_match_stats")
+            await db.execute("DELETE FROM group_standings")
             await db.execute("DELETE FROM squad_selections")
-            await db.execute("DELETE FROM players")
-            await db.execute("DELETE FROM countries")
             await db.execute("DELETE FROM matches")
             await db.execute("DELETE FROM matchdays")
+            await db.execute("DELETE FROM players")
+            await db.execute("DELETE FROM countries")
             await db.commit()
-            print("[DATA] Player data cleared for reimport")
+            print("[DATA] All data cleared for reimport")
         finally:
             await db.close()
     else:
