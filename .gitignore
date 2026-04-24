@@ -9,6 +9,3 @@ dist/
 build/
 *.egg-info/
 .pytest_cache/
-
-# EFEM player data (generated, re-download with scripts/import_efeme_players.py)
-data/raw/efeme/*.json
