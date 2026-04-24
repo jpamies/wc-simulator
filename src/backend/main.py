@@ -6,6 +6,8 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
 
 from src.backend.config import CORS_ORIGINS
 from src.backend.database import init_db
@@ -41,6 +43,21 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+class NoCacheStaticMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        path = request.url.path
+        if not path.startswith("/api/"):
+            if path.endswith(".html") or path == "/" or "." not in path.split("/")[-1]:
+                response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+            else:
+                response.headers["Cache-Control"] = "public, max-age=300"
+        return response
+
+
+app.add_middleware(NoCacheStaticMiddleware)
 
 # ─── API routes under /api/v1 ───
 app.include_router(tournament_router, prefix="/api/v1")
