@@ -68,7 +68,7 @@ async def calendar():
                 FROM matches m
                 LEFT JOIN countries h ON m.home_code = h.code
                 LEFT JOIN countries a ON m.away_code = a.code
-                WHERE m.matchday_id = ?
+                WHERE m.matchday_id = $1
                 ORDER BY m.kickoff ASC
             """, (md["id"],))
             result.append(MatchdayOut(

@@ -86,7 +86,7 @@ async def recalculate_group_standings():
             await db.execute(
                 """INSERT INTO group_standings (country_code, group_letter,
                    played, won, drawn, lost, goals_for, goals_against, points)
-                   VALUES (?, ?, 0, 0, 0, 0, 0, 0, 0)""",
+                   VALUES ($1, $2, 0, 0, 0, 0, 0, 0, 0)""",
                 (code, group),
             )
 
@@ -111,18 +111,18 @@ async def recalculate_group_standings():
 
             await db.execute("""
                 UPDATE group_standings SET
-                    played = played + 1, won = won + ?, drawn = drawn + ?,
-                    lost = lost + ?, goals_for = goals_for + ?,
-                    goals_against = goals_against + ?, points = points + ?
-                WHERE country_code = ?
+                    played = played + 1, won = won + $1, drawn = drawn + $2,
+                    lost = lost + $3, goals_for = goals_for + $4,
+                    goals_against = goals_against + $5, points = points + $6
+                WHERE country_code = $7
             """, (hw, hd, hl, sh, sa, hp, h))
 
             await db.execute("""
                 UPDATE group_standings SET
-                    played = played + 1, won = won + ?, drawn = drawn + ?,
-                    lost = lost + ?, goals_for = goals_for + ?,
-                    goals_against = goals_against + ?, points = points + ?
-                WHERE country_code = ?
+                    played = played + 1, won = won + $1, drawn = drawn + $2,
+                    lost = lost + $3, goals_for = goals_for + $4,
+                    goals_against = goals_against + $5, points = points + $6
+                WHERE country_code = $7
             """, (aw, ad, al, sa, sh, ap, a))
 
         await db.commit()
@@ -256,18 +256,18 @@ async def resolve_r32_bracket():
 
             if home_code and away_code:
                 home_row = await db.execute_fetchall(
-                    "SELECT name FROM countries WHERE code = ?", (home_code,)
+                    "SELECT name FROM countries WHERE code = $1", (home_code,)
                 )
                 away_row = await db.execute_fetchall(
-                    "SELECT name FROM countries WHERE code = ?", (away_code,)
+                    "SELECT name FROM countries WHERE code = $1", (away_code,)
                 )
                 home_name = home_row[0]["name"] if home_row else home_ref
                 away_name = away_row[0]["name"] if away_row else away_ref
 
                 await db.execute("""
-                    UPDATE matches SET home_code = ?, away_code = ?,
-                        home_team = ?, away_team = ?
-                    WHERE id = ?
+                    UPDATE matches SET home_code = $1, away_code = $2,
+                        home_team = $3, away_team = $4
+                    WHERE id = $5
                 """, (home_code, away_code, home_name, away_name, m["id"]))
                 resolved.append({
                     "id": m["id"], "home": home_code, "away": away_code,
@@ -354,10 +354,10 @@ async def resolve_knockout_round(current_phase: str):
         for next_match_id, (source_a_id, source_b_id) in bracket.items():
             # Get source matches
             source_a = await db.execute_fetchall(
-                "SELECT * FROM matches WHERE id = ?", (source_a_id,)
+                "SELECT * FROM matches WHERE id = $1", (source_a_id,)
             )
             source_b = await db.execute_fetchall(
-                "SELECT * FROM matches WHERE id = ?", (source_b_id,)
+                "SELECT * FROM matches WHERE id = $1", (source_b_id,)
             )
             if not source_a or not source_b:
                 continue
@@ -369,18 +369,18 @@ async def resolve_knockout_round(current_phase: str):
                 continue
 
             home_row = await db.execute_fetchall(
-                "SELECT name FROM countries WHERE code = ?", (home_code,)
+                "SELECT name FROM countries WHERE code = $1", (home_code,)
             )
             away_row = await db.execute_fetchall(
-                "SELECT name FROM countries WHERE code = ?", (away_code,)
+                "SELECT name FROM countries WHERE code = $1", (away_code,)
             )
             home_name = home_row[0]["name"] if home_row else home_code
             away_name = away_row[0]["name"] if away_row else away_code
 
             await db.execute("""
-                UPDATE matches SET home_code = ?, away_code = ?,
-                    home_team = ?, away_team = ?
-                WHERE id = ?
+                UPDATE matches SET home_code = $1, away_code = $2,
+                    home_team = $3, away_team = $4
+                WHERE id = $5
             """, (home_code, away_code, home_name, away_name, next_match_id))
             resolved.append({
                 "id": next_match_id, "home": home_code, "away": away_code,
@@ -403,8 +403,8 @@ async def _resolve_semi_to_final():
 
         # 3rd place match: losers of M101 and M102
         for next_match_id, (src_a_id, src_b_id) in THIRD_PLACE.items():
-            src_a = await db.execute_fetchall("SELECT * FROM matches WHERE id = ?", (src_a_id,))
-            src_b = await db.execute_fetchall("SELECT * FROM matches WHERE id = ?", (src_b_id,))
+            src_a = await db.execute_fetchall("SELECT * FROM matches WHERE id = $1", (src_a_id,))
+            src_b = await db.execute_fetchall("SELECT * FROM matches WHERE id = $1", (src_b_id,))
             if not src_a or not src_b:
                 continue
             a, b = dict(src_a[0]), dict(src_b[0])
@@ -415,21 +415,21 @@ async def _resolve_semi_to_final():
             home_code = a["away_code"] if wa == a["home_code"] else a["home_code"]
             away_code = b["away_code"] if wb == b["home_code"] else b["home_code"]
 
-            home_row = await db.execute_fetchall("SELECT name FROM countries WHERE code = ?", (home_code,))
-            away_row = await db.execute_fetchall("SELECT name FROM countries WHERE code = ?", (away_code,))
+            home_row = await db.execute_fetchall("SELECT name FROM countries WHERE code = $1", (home_code,))
+            away_row = await db.execute_fetchall("SELECT name FROM countries WHERE code = $1", (away_code,))
             home_name = home_row[0]["name"] if home_row else home_code
             away_name = away_row[0]["name"] if away_row else away_code
 
             await db.execute("""
-                UPDATE matches SET home_code = ?, away_code = ?, home_team = ?, away_team = ? WHERE id = ?
+                UPDATE matches SET home_code = $1, away_code = $2, home_team = $3, away_team = $4 WHERE id = $5
             """, (home_code, away_code, home_name, away_name, next_match_id))
             resolved.append({"id": next_match_id, "home": home_code, "away": away_code,
                              "home_name": home_name, "away_name": away_name})
 
         # Final: winners of M101 and M102
         for next_match_id, (src_a_id, src_b_id) in FINAL_BRACKET.items():
-            src_a = await db.execute_fetchall("SELECT * FROM matches WHERE id = ?", (src_a_id,))
-            src_b = await db.execute_fetchall("SELECT * FROM matches WHERE id = ?", (src_b_id,))
+            src_a = await db.execute_fetchall("SELECT * FROM matches WHERE id = $1", (src_a_id,))
+            src_b = await db.execute_fetchall("SELECT * FROM matches WHERE id = $1", (src_b_id,))
             if not src_a or not src_b:
                 continue
             wa = _get_winner(dict(src_a[0]))
@@ -437,13 +437,13 @@ async def _resolve_semi_to_final():
             if not wa or not wb:
                 continue
 
-            home_row = await db.execute_fetchall("SELECT name FROM countries WHERE code = ?", (wa,))
-            away_row = await db.execute_fetchall("SELECT name FROM countries WHERE code = ?", (wb,))
+            home_row = await db.execute_fetchall("SELECT name FROM countries WHERE code = $1", (wa,))
+            away_row = await db.execute_fetchall("SELECT name FROM countries WHERE code = $1", (wb,))
             home_name = home_row[0]["name"] if home_row else wa
             away_name = away_row[0]["name"] if away_row else wb
 
             await db.execute("""
-                UPDATE matches SET home_code = ?, away_code = ?, home_team = ?, away_team = ? WHERE id = ?
+                UPDATE matches SET home_code = $1, away_code = $2, home_team = $3, away_team = $4 WHERE id = $5
             """, (wa, wb, home_name, away_name, next_match_id))
             resolved.append({"id": next_match_id, "home": wa, "away": wb,
                              "home_name": home_name, "away_name": away_name})

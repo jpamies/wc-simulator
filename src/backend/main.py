@@ -10,7 +10,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 
 from src.backend.config import CORS_ORIGINS
-from src.backend.database import init_db
+from src.backend.database import init_db, close_pool
 from src.backend.services.data_import import import_all
 from src.backend.services.tournament_engine import recalculate_group_standings
 
@@ -27,6 +27,7 @@ async def lifespan(app: FastAPI):
     await import_all()
     await recalculate_group_standings()
     yield
+    await close_pool()
 
 
 app = FastAPI(

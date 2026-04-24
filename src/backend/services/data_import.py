@@ -129,9 +129,10 @@ async def _import_countries_from_groups():
                 flag = TEAM_FLAGS.get(code, "")
                 confederation = TEAM_CONFEDERATIONS.get(code, "")
                 await db.execute(
-                    """INSERT OR IGNORE INTO countries
+                    """INSERT INTO countries
                        (code, name, flag, confederation, group_letter)
-                       VALUES (?, ?, ?, ?, ?)""",
+                       VALUES ($1, $2, $3, $4, $5)
+                       ON CONFLICT DO NOTHING""",
                     (code, name, flag, confederation, letter),
                 )
         await db.commit()
@@ -152,8 +153,9 @@ async def _import_calendar():
     try:
         for md in data:
             await db.execute(
-                """INSERT OR IGNORE INTO matchdays (id, name, phase, date, status)
-                   VALUES (?, ?, ?, ?, 'scheduled')""",
+                """INSERT INTO matchdays (id, name, phase, date, status)
+                   VALUES ($1, $2, $3, $4, 'scheduled')
+                   ON CONFLICT DO NOTHING""",
                 (md["id"], md["name"], md["phase"], md["date"]),
             )
 
@@ -164,11 +166,12 @@ async def _import_calendar():
                 away_code = get_code(away_name)
 
                 await db.execute(
-                    """INSERT OR IGNORE INTO matches
+                    """INSERT INTO matches
                        (id, matchday_id, match_number, home_team, away_team,
                         home_code, away_code, kickoff, location, group_name,
                         status, is_simulated)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'scheduled', 0)""",
+                       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'scheduled', 0)
+                       ON CONFLICT DO NOTHING""",
                     (m["id"], md["id"], m.get("match_number"),
                      home_name, away_name, home_code, away_code,
                      m["kickoff"], m.get("location"), m.get("group")),
@@ -220,11 +223,12 @@ async def _import_players():
                     continue
                 
                 await db.execute(
-                    """INSERT OR IGNORE INTO players
+                    """INSERT INTO players
                        (id, name, country_code, position, detailed_position,
                         club, league, age, market_value, photo, strength,
                         pace, shooting, passing, dribbling, defending, physic)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+                       ON CONFLICT DO NOTHING""",
                     (player.id, player.name, player.country_code,
                      player.position, player.detailed_position,
                      player.club, player.league, player.age, player.market_value,

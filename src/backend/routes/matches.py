@@ -26,16 +26,20 @@ async def list_matches(
             WHERE 1=1
         """
         params: list = []
+        param_idx = 1
 
         if matchday_id:
-            query += " AND m.matchday_id = ?"
+            query += f" AND m.matchday_id = ${param_idx}"
             params.append(matchday_id)
+            param_idx += 1
         if country:
-            query += " AND (m.home_code = ? OR m.away_code = ?)"
+            query += f" AND (m.home_code = ${param_idx} OR m.away_code = ${param_idx + 1})"
             params.extend([country, country])
+            param_idx += 2
         if status:
-            query += " AND m.status = ?"
+            query += f" AND m.status = ${param_idx}"
             params.append(status)
+            param_idx += 1
 
         query += " ORDER BY m.kickoff ASC"
         rows = await db.execute_fetchall(query, params)
@@ -53,7 +57,7 @@ async def get_match(match_id: str):
             FROM matches m
             LEFT JOIN countries h ON m.home_code = h.code
             LEFT JOIN countries a ON m.away_code = a.code
-            WHERE m.id = ?
+            WHERE m.id = $1
         """, (match_id,))
         if not rows:
             raise HTTPException(404, "Match not found")
@@ -68,17 +72,17 @@ async def set_match_result(match_id: str, result: MatchResultIn):
     db = await get_db()
     try:
         rows = await db.execute_fetchall(
-            "SELECT * FROM matches WHERE id = ?", (match_id,)
+            "SELECT * FROM matches WHERE id = $1", (match_id,)
         )
         if not rows:
             raise HTTPException(404, "Match not found")
 
         await db.execute("""
             UPDATE matches SET
-                score_home = ?, score_away = ?,
-                penalty_home = ?, penalty_away = ?,
+                score_home = $1, score_away = $2,
+                penalty_home = $3, penalty_away = $4,
                 status = 'finished', is_simulated = 0
-            WHERE id = ?
+            WHERE id = $5
         """, (result.score_home, result.score_away,
               result.penalty_home, result.penalty_away, match_id))
         await db.commit()
@@ -86,7 +90,7 @@ async def set_match_result(match_id: str, result: MatchResultIn):
         # Recalculate standings if group phase
         match = rows[0]
         md = await db.execute_fetchall(
-            "SELECT phase FROM matchdays WHERE id = ?", (match["matchday_id"],)
+            "SELECT phase FROM matchdays WHERE id = $1", (match["matchday_id"],)
         )
         if md and md[0]["phase"] == "groups":
             await recalculate_group_standings()
@@ -102,7 +106,7 @@ async def set_match_stats(match_id: str, data: MatchStatsIn):
     db = await get_db()
     try:
         rows = await db.execute_fetchall(
-            "SELECT * FROM matches WHERE id = ?", (match_id,)
+            "SELECT * FROM matches WHERE id = $1", (match_id,)
         )
         if not rows:
             raise HTTPException(404, "Match not found")
@@ -114,7 +118,7 @@ async def set_match_stats(match_id: str, data: MatchStatsIn):
                      yellow_cards, red_card, own_goals, penalties_missed,
                      penalties_saved, saves, goals_conceded, clean_sheet,
                      rating, is_starter)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
                 ON CONFLICT(player_id, match_id) DO UPDATE SET
                     minutes_played=excluded.minutes_played,
                     goals=excluded.goals, assists=excluded.assists,
@@ -148,7 +152,7 @@ async def get_match_stats(match_id: str):
             SELECT pms.*, p.name as player_name, p.country_code, p.position
             FROM player_match_stats pms
             JOIN players p ON pms.player_id = p.id
-            WHERE pms.match_id = ?
+            WHERE pms.match_id = $1
             ORDER BY p.country_code, pms.is_starter DESC, p.position
         """, (match_id,))
         return [PlayerStatOut(**dict(r)) for r in rows]

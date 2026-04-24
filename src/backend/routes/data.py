@@ -33,7 +33,7 @@ async def get_country(code: str):
             SELECT c.*, COUNT(p.id) as player_count
             FROM countries c
             LEFT JOIN players p ON p.country_code = c.code
-            WHERE c.code = ?
+            WHERE c.code = $1
             GROUP BY c.code
         """, (code,))
         if not rows:
@@ -49,7 +49,7 @@ async def get_country_players(code: str):
     db = await get_db()
     try:
         rows = await db.execute_fetchall(
-            "SELECT * FROM players WHERE country_code = ? ORDER BY position, name",
+            "SELECT * FROM players WHERE country_code = $1 ORDER BY position, name",
             (code,),
         )
         return [PlayerOut(**dict(r)) for r in rows]
@@ -72,21 +72,25 @@ async def list_players(
     try:
         query = "SELECT * FROM players WHERE 1=1"
         params: list = []
+        param_idx = 1
 
         if country:
-            query += " AND country_code = ?"
+            query += f" AND country_code = ${param_idx}"
             params.append(country)
+            param_idx += 1
         if position:
-            query += " AND position = ?"
+            query += f" AND position = ${param_idx}"
             params.append(position)
+            param_idx += 1
         if search:
-            query += " AND name LIKE ?"
+            query += f" AND name LIKE ${param_idx}"
             params.append(f"%{search}%")
+            param_idx += 1
 
         order = {"market_value": "market_value DESC", "name": "name ASC",
                  "age": "age ASC", "strength": "strength DESC"}
         query += f" ORDER BY {order.get(sort, 'market_value DESC')}"
-        query += " LIMIT ? OFFSET ?"
+        query += f" LIMIT ${param_idx} OFFSET ${param_idx + 1}"
         params.extend([limit, offset])
 
         rows = await db.execute_fetchall(query, params)
@@ -100,7 +104,7 @@ async def get_player(player_id: str):
     db = await get_db()
     try:
         rows = await db.execute_fetchall(
-            "SELECT * FROM players WHERE id = ?", (player_id,)
+            "SELECT * FROM players WHERE id = $1", (player_id,)
         )
         if not rows:
             from fastapi import HTTPException

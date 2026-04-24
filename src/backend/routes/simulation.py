@@ -23,21 +23,21 @@ async def simulate_matches(data: SimulateMatchesIn):
     try:
         # Determine which matches to simulate
         if data.match_ids:
-            placeholders = ",".join("?" for _ in data.match_ids)
+            placeholders = ",".join(f"${i+1}" for i in range(len(data.match_ids)))
             matches = await db.execute_fetchall(
                 f"SELECT * FROM matches WHERE id IN ({placeholders}) AND status = 'scheduled'",
                 data.match_ids,
             )
         elif data.matchday_id:
             matches = await db.execute_fetchall(
-                "SELECT * FROM matches WHERE matchday_id = ? AND status = 'scheduled'",
+                "SELECT * FROM matches WHERE matchday_id = $1 AND status = 'scheduled'",
                 (data.matchday_id,),
             )
         elif data.phase:
             matches = await db.execute_fetchall("""
                 SELECT m.* FROM matches m
                 JOIN matchdays md ON m.matchday_id = md.id
-                WHERE md.phase = ? AND m.status = 'scheduled'
+                WHERE md.phase = $1 AND m.status = 'scheduled'
             """, (data.phase,))
         else:
             raise HTTPException(400, "Provide match_ids, matchday_id, or phase")
@@ -58,17 +58,17 @@ async def simulate_matches(data: SimulateMatchesIn):
             # Use squad if available, otherwise all players (engine will auto-select 26)
             for code, label in [(home_code, "home"), (away_code, "away")]:
                 has_squad = await db.execute_fetchall(
-                    "SELECT COUNT(*) as c FROM squad_selections WHERE country_code = ?", (code,)
+                    "SELECT COUNT(*) as c FROM squad_selections WHERE country_code = $1", (code,)
                 )
                 if has_squad[0]["c"] > 0:
                     rows = await db.execute_fetchall("""
                         SELECT p.id, p.name, p.position, p.strength, p.country_code
                         FROM players p JOIN squad_selections s ON s.player_id = p.id
-                        WHERE s.country_code = ?
+                        WHERE s.country_code = $1
                     """, (code,))
                 else:
                     rows = await db.execute_fetchall(
-                        "SELECT id, name, position, strength, country_code FROM players WHERE country_code = ?",
+                        "SELECT id, name, position, strength, country_code FROM players WHERE country_code = $1",
                         (code,),
                     )
                 if label == "home":
@@ -81,7 +81,7 @@ async def simulate_matches(data: SimulateMatchesIn):
 
             # Determine if knockout
             md = await db.execute_fetchall(
-                "SELECT phase FROM matchdays WHERE id = ?", (match["matchday_id"],)
+                "SELECT phase FROM matchdays WHERE id = $1", (match["matchday_id"],)
             )
             is_knockout = md[0]["phase"] != "groups" if md else False
 
@@ -90,10 +90,10 @@ async def simulate_matches(data: SimulateMatchesIn):
             # Update match result
             await db.execute("""
                 UPDATE matches SET
-                    score_home = ?, score_away = ?,
-                    penalty_home = ?, penalty_away = ?,
+                    score_home = $1, score_away = $2,
+                    penalty_home = $3, penalty_away = $4,
                     status = 'finished', is_simulated = 1
-                WHERE id = ?
+                WHERE id = $5
             """, (sim.score_home, sim.score_away,
                   sim.penalty_home, sim.penalty_away, match["id"]))
 
@@ -106,7 +106,7 @@ async def simulate_matches(data: SimulateMatchesIn):
                          yellow_cards, red_card, own_goals, penalties_missed,
                          penalties_saved, saves, goals_conceded, clean_sheet,
                          rating, is_starter)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
                     ON CONFLICT(player_id, match_id) DO UPDATE SET
                         minutes_played=excluded.minutes_played,
                         goals=excluded.goals, assists=excluded.assists,
@@ -133,7 +133,7 @@ async def simulate_matches(data: SimulateMatchesIn):
         await recalculate_group_standings()
 
         # Return updated matches
-        placeholders = ",".join("?" for _ in results)
+        placeholders = ",".join(f"${i+1}" for i in range(len(results)))
         updated = await db.execute_fetchall(f"""
             SELECT m.*, h.flag as home_flag, a.flag as away_flag
             FROM matches m
@@ -226,7 +226,7 @@ async def simulate_full_tournament():
         db = await get_db()
         try:
             remaining = await db.execute_fetchall(
-                "SELECT COUNT(*) as c FROM matches WHERE matchday_id = ? AND status = 'scheduled'",
+                "SELECT COUNT(*) as c FROM matches WHERE matchday_id = $1 AND status = 'scheduled'",
                 (gs_id,),
             )
         finally:
@@ -301,9 +301,9 @@ async def reset_simulation():
                 for m in md.get("matches", []):
                     await db.execute("""
                         UPDATE matches SET
-                            home_team = ?, away_team = ?,
+                            home_team = $1, away_team = $2,
                             home_code = NULL, away_code = NULL
-                        WHERE id = ?
+                        WHERE id = $3
                     """, (m["home"], m["away"], m["id"]))
 
         await db.commit()

@@ -1,5 +1,14 @@
-import aiosqlite
-from src.backend.config import DATABASE_PATH
+"""Database layer using asyncpg (PostgreSQL).
+
+Provides a thin wrapper around asyncpg that mimics the aiosqlite API used
+by routes and services: get_db(), db.execute(), db.execute_fetchall(),
+db.commit(), db.close().
+"""
+
+import asyncpg
+from src.backend.config import DATABASE_URL
+
+_pool: asyncpg.Pool | None = None
 
 SCHEMA = """
 -- ─── Countries ───
@@ -64,7 +73,7 @@ CREATE TABLE IF NOT EXISTS matches (
     penalty_away INTEGER,
     status TEXT NOT NULL DEFAULT 'scheduled'
         CHECK(status IN ('scheduled','live','finished')),
-    is_simulated BOOLEAN NOT NULL DEFAULT 0
+    is_simulated BOOLEAN NOT NULL DEFAULT FALSE
 );
 CREATE INDEX IF NOT EXISTS idx_matches_matchday ON matches(matchday_id);
 CREATE INDEX IF NOT EXISTS idx_matches_home ON matches(home_code);
@@ -72,22 +81,22 @@ CREATE INDEX IF NOT EXISTS idx_matches_away ON matches(away_code);
 
 -- ─── Player match stats ───
 CREATE TABLE IF NOT EXISTS player_match_stats (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     player_id TEXT NOT NULL REFERENCES players(id),
     match_id TEXT NOT NULL REFERENCES matches(id),
     minutes_played INTEGER DEFAULT 0,
     goals INTEGER DEFAULT 0,
     assists INTEGER DEFAULT 0,
     yellow_cards INTEGER DEFAULT 0,
-    red_card BOOLEAN DEFAULT 0,
+    red_card BOOLEAN DEFAULT FALSE,
     own_goals INTEGER DEFAULT 0,
     penalties_missed INTEGER DEFAULT 0,
     penalties_saved INTEGER DEFAULT 0,
     saves INTEGER DEFAULT 0,
     goals_conceded INTEGER DEFAULT 0,
-    clean_sheet BOOLEAN DEFAULT 0,
+    clean_sheet BOOLEAN DEFAULT FALSE,
     rating REAL DEFAULT 0.0,
-    is_starter BOOLEAN DEFAULT 0,
+    is_starter BOOLEAN DEFAULT FALSE,
     UNIQUE(player_id, match_id)
 );
 CREATE INDEX IF NOT EXISTS idx_pms_player ON player_match_stats(player_id);
@@ -127,18 +136,87 @@ CREATE INDEX IF NOT EXISTS idx_squad_country ON squad_selections(country_code);
 """
 
 
-async def get_db() -> aiosqlite.Connection:
-    db = await aiosqlite.connect(DATABASE_PATH)
-    db.row_factory = aiosqlite.Row
-    await db.execute("PRAGMA journal_mode=WAL")
-    await db.execute("PRAGMA foreign_keys=ON")
-    return db
+class PgConnection:
+    """Thin wrapper around asyncpg.Connection that provides an API compatible
+    with the aiosqlite patterns used throughout the codebase.
+    
+    Usage:
+        db = await get_db()
+        try:
+            rows = await db.execute_fetchall("SELECT * FROM t WHERE id = $1", (val,))
+            await db.execute("INSERT INTO t VALUES ($1, $2)", (a, b))
+            await db.commit()
+        finally:
+            await db.close()
+    """
+    
+    def __init__(self, conn: asyncpg.Connection):
+        self._conn = conn
+        self._tx = None
+    
+    async def execute(self, sql: str, params=None):
+        """Execute a statement (INSERT/UPDATE/DELETE/DDL)."""
+        if self._tx is None:
+            self._tx = self._conn.transaction()
+            await self._tx.start()
+        if params:
+            await self._conn.execute(sql, *params)
+        else:
+            await self._conn.execute(sql)
+    
+    async def execute_fetchall(self, sql: str, params=None) -> list[dict]:
+        """Execute a query and return all rows as list of dicts."""
+        if params:
+            rows = await self._conn.fetch(sql, *params)
+        else:
+            rows = await self._conn.fetch(sql)
+        return [dict(r) for r in rows]
+    
+    async def commit(self):
+        """Commit the current transaction."""
+        if self._tx is not None:
+            await self._tx.commit()
+            self._tx = None
+    
+    async def close(self):
+        """Release the connection back to the pool."""
+        if self._tx is not None:
+            try:
+                await self._tx.rollback()
+            except Exception:
+                pass
+            self._tx = None
+        await _pool.release(self._conn)
+
+
+async def get_db() -> PgConnection:
+    """Get a database connection from the pool."""
+    global _pool
+    if _pool is None:
+        _pool = await asyncpg.create_pool(DATABASE_URL, min_size=2, max_size=10)
+    conn = await _pool.acquire()
+    return PgConnection(conn)
 
 
 async def init_db():
-    db = await get_db()
-    try:
-        await db.executescript(SCHEMA)
-        await db.commit()
-    finally:
-        await db.close()
+    """Create tables if they don't exist."""
+    global _pool
+    if _pool is None:
+        _pool = await asyncpg.create_pool(DATABASE_URL, min_size=2, max_size=10)
+    
+    async with _pool.acquire() as conn:
+        # Execute schema statements one by one (PG doesn't support executescript)
+        for statement in SCHEMA.split(";"):
+            statement = statement.strip()
+            if statement and not statement.startswith("--"):
+                await conn.execute(statement)
+    
+    print("[DB] PostgreSQL schema initialized")
+
+
+async def close_pool():
+    """Close the connection pool (call on shutdown)."""
+    global _pool
+    if _pool is not None:
+        await _pool.close()
+        _pool = None

@@ -74,7 +74,7 @@ async def get_squad(country_code: str):
         rows = await db.execute_fetchall("""
             SELECT p.* FROM players p
             JOIN squad_selections s ON s.player_id = p.id
-            WHERE s.country_code = ?
+            WHERE s.country_code = $1
             ORDER BY
                 CASE p.position WHEN 'GK' THEN 1 WHEN 'DEF' THEN 2
                      WHEN 'MID' THEN 3 WHEN 'FWD' THEN 4 END,
@@ -95,16 +95,16 @@ async def save_squad(country_code: str, data: SquadIn):
     try:
         # Verify country exists
         row = await db.execute_fetchall(
-            "SELECT code FROM countries WHERE code = ?", (country_code,)
+            "SELECT code FROM countries WHERE code = $1", (country_code,)
         )
         if not row:
             raise HTTPException(404, "Country not found")
 
         # Verify all players belong to this country
         if data.player_ids:
-            placeholders = ",".join("?" for _ in data.player_ids)
+            placeholders = ",".join(f"${i+1}" for i in range(len(data.player_ids)))
             players = await db.execute_fetchall(
-                f"SELECT id, position FROM players WHERE id IN ({placeholders}) AND country_code = ?",
+                f"SELECT id, position FROM players WHERE id IN ({placeholders}) AND country_code = ${len(data.player_ids) + 1}",
                 [*data.player_ids, country_code],
             )
             found_ids = {p["id"] for p in players}
@@ -119,11 +119,11 @@ async def save_squad(country_code: str, data: SquadIn):
 
         # Replace squad
         await db.execute(
-            "DELETE FROM squad_selections WHERE country_code = ?", (country_code,)
+            "DELETE FROM squad_selections WHERE country_code = $1", (country_code,)
         )
         for pid in data.player_ids:
             await db.execute(
-                "INSERT INTO squad_selections (country_code, player_id) VALUES (?, ?)",
+                "INSERT INTO squad_selections (country_code, player_id) VALUES ($1, $2)",
                 (country_code, pid),
             )
         await db.commit()
@@ -139,7 +139,7 @@ async def auto_select_squad(country_code: str):
     db = await get_db()
     try:
         row = await db.execute_fetchall(
-            "SELECT code FROM countries WHERE code = ?", (country_code,)
+            "SELECT code FROM countries WHERE code = $1", (country_code,)
         )
         if not row:
             raise HTTPException(404, "Country not found")
@@ -149,18 +149,18 @@ async def auto_select_squad(country_code: str):
 
         for pos, count in targets.items():
             rows = await db.execute_fetchall(
-                "SELECT id FROM players WHERE country_code = ? AND position = ? ORDER BY strength DESC LIMIT ?",
+                "SELECT id FROM players WHERE country_code = $1 AND position = $2 ORDER BY strength DESC LIMIT $3",
                 (country_code, pos, count),
             )
             selected.extend(r["id"] for r in rows)
 
         # Replace squad
         await db.execute(
-            "DELETE FROM squad_selections WHERE country_code = ?", (country_code,)
+            "DELETE FROM squad_selections WHERE country_code = $1", (country_code,)
         )
         for pid in selected:
             await db.execute(
-                "INSERT INTO squad_selections (country_code, player_id) VALUES (?, ?)",
+                "INSERT INTO squad_selections (country_code, player_id) VALUES ($1, $2)",
                 (country_code, pid),
             )
         await db.commit()
