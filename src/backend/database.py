@@ -205,11 +205,8 @@ async def init_db():
         _pool = await asyncpg.create_pool(DATABASE_URL, min_size=2, max_size=10)
     
     async with _pool.acquire() as conn:
-        # Execute schema statements one by one (PG doesn't support executescript)
-        for statement in SCHEMA.split(";"):
-            statement = statement.strip()
-            if statement and not statement.startswith("--"):
-                await conn.execute(statement)
+        # Execute entire schema as a single transaction
+        await conn.execute(SCHEMA)
     
     print("[DB] PostgreSQL schema initialized")
 
