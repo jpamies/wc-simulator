@@ -170,7 +170,7 @@ async def _import_calendar():
                        (id, matchday_id, match_number, home_team, away_team,
                         home_code, away_code, kickoff, location, group_name,
                         status, is_simulated)
-                       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'scheduled', 0)
+                       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'scheduled', FALSE)
                        ON CONFLICT DO NOTHING""",
                     (m["id"], md["id"], m.get("match_number"),
                      home_name, away_name, home_code, away_code,

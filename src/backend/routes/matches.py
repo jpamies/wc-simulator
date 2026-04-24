@@ -81,7 +81,7 @@ async def set_match_result(match_id: str, result: MatchResultIn):
             UPDATE matches SET
                 score_home = $1, score_away = $2,
                 penalty_home = $3, penalty_away = $4,
-                status = 'finished', is_simulated = 0
+                status = 'finished', is_simulated = FALSE
             WHERE id = $5
         """, (result.score_home, result.score_away,
               result.penalty_home, result.penalty_away, match_id))

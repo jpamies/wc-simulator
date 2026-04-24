@@ -92,7 +92,7 @@ async def simulate_matches(data: SimulateMatchesIn):
                 UPDATE matches SET
                     score_home = $1, score_away = $2,
                     penalty_home = $3, penalty_away = $4,
-                    status = 'finished', is_simulated = 1
+                    status = 'finished', is_simulated = TRUE
                 WHERE id = $5
             """, (sim.score_home, sim.score_away,
                   sim.penalty_home, sim.penalty_away, match["id"]))
@@ -274,7 +274,7 @@ async def reset_simulation():
         # Delete stats for simulated matches
         await db.execute("""
             DELETE FROM player_match_stats WHERE match_id IN (
-                SELECT id FROM matches WHERE is_simulated = 1
+                SELECT id FROM matches WHERE is_simulated = TRUE
             )
         """)
 
@@ -283,8 +283,8 @@ async def reset_simulation():
             UPDATE matches SET
                 score_home = NULL, score_away = NULL,
                 penalty_home = NULL, penalty_away = NULL,
-                status = 'scheduled', is_simulated = 0
-            WHERE is_simulated = 1
+                status = 'scheduled', is_simulated = FALSE
+            WHERE is_simulated = TRUE
         """)
 
         # Reset knockout matches back to placeholder names
