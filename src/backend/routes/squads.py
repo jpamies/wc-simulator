@@ -33,27 +33,31 @@ async def list_squads():
     try:
         rows = await db.execute_fetchall("""
             SELECT c.code, c.name, c.flag,
-                   (SELECT COUNT(*) FROM players p WHERE p.country_code = c.code) as total_players,
-                   (SELECT COUNT(*) FROM squad_selections s WHERE s.country_code = c.code) as squad_size,
-                   (SELECT COUNT(*) FROM squad_selections s
-                    JOIN players p ON s.player_id = p.id
-                    WHERE s.country_code = c.code AND p.position = 'GK') as gk,
-                   (SELECT COUNT(*) FROM squad_selections s
-                    JOIN players p ON s.player_id = p.id
-                    WHERE s.country_code = c.code AND p.position = 'DEF') as defs,
-                   (SELECT COUNT(*) FROM squad_selections s
-                    JOIN players p ON s.player_id = p.id
-                    WHERE s.country_code = c.code AND p.position = 'MID') as mids,
-                   (SELECT COUNT(*) FROM squad_selections s
-                    JOIN players p ON s.player_id = p.id
-                    WHERE s.country_code = c.code AND p.position = 'FWD') as fwds,
-                   COALESCE((SELECT AVG(p.strength) FROM squad_selections s
-                    JOIN players p ON s.player_id = p.id
-                    WHERE s.country_code = c.code), 0) as avg_strength,
-                   COALESCE((SELECT SUM(p.market_value) FROM squad_selections s
-                    JOIN players p ON s.player_id = p.id
-                    WHERE s.country_code = c.code), 0) as total_value
+                   COALESCE(pc.cnt, 0) as total_players,
+                   COALESCE(sq.squad_size, 0) as squad_size,
+                   COALESCE(sq.gk, 0) as gk,
+                   COALESCE(sq.defs, 0) as defs,
+                   COALESCE(sq.mids, 0) as mids,
+                   COALESCE(sq.fwds, 0) as fwds,
+                   COALESCE(sq.avg_strength, 0) as avg_strength,
+                   COALESCE(sq.total_value, 0) as total_value
             FROM countries c
+            LEFT JOIN (
+                SELECT country_code, COUNT(*) as cnt FROM players GROUP BY country_code
+            ) pc ON pc.country_code = c.code
+            LEFT JOIN (
+                SELECT s.country_code,
+                       COUNT(*) as squad_size,
+                       COUNT(*) FILTER (WHERE p.position = 'GK') as gk,
+                       COUNT(*) FILTER (WHERE p.position = 'DEF') as defs,
+                       COUNT(*) FILTER (WHERE p.position = 'MID') as mids,
+                       COUNT(*) FILTER (WHERE p.position = 'FWD') as fwds,
+                       AVG(p.strength) as avg_strength,
+                       SUM(p.market_value) as total_value
+                FROM squad_selections s
+                JOIN players p ON s.player_id = p.id
+                GROUP BY s.country_code
+            ) sq ON sq.country_code = c.code
             ORDER BY c.name
         """)
         return [SquadOverview(
