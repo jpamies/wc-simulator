@@ -8,6 +8,7 @@ The Player object is the canonical representation independent of source format.
 """
 
 from abc import ABC, abstractmethod
+from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from typing import Optional
 
@@ -72,12 +73,16 @@ class PlayerDataSource(ABC):
     
     @abstractmethod
     async def load_all_players(self) -> list[Player]:
-        """Load all players from the source.
-        
-        Returns:
-            List of Player objects in canonical format.
-        """
+        """Load all players from the source."""
         pass
+    
+    async def load_players_by_country(self) -> AsyncIterator[list[Player]]:
+        """Yield players one country at a time to limit memory usage.
+        
+        Default implementation falls back to load_all_players() in one batch.
+        Subclasses should override for streaming support.
+        """
+        yield await self.load_all_players()
     
     @abstractmethod
     def get_source_name(self) -> str:

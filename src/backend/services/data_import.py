@@ -184,11 +184,7 @@ async def _import_calendar():
 async def _import_players():
     """Import player data using auto-detected data source.
     
-    Attempts to load players from available data sources in priority order:
-    1. EFEM API JSON (data/raw/efeme/)
-    2. Raw players format (data/raw/players/)
-    
-    Players are converted to canonical Player objects and stored in the database.
+    Streams players file-by-file to avoid loading all 244k+ players into RAM.
     """
     try:
         data_source = await PlayerDataSourceFactory.create_source()
@@ -198,42 +194,50 @@ async def _import_players():
         print(f"   {e}")
         return
     
-    # Load players from the selected source
-    players = await data_source.load_all_players()
-    
-    if not players:
-        print("[WARN] No players loaded from data source")
-        return
-    
-    # Insert into database
+    # Get valid country codes from DB
     db = await get_db()
     try:
-        imported = 0
-        for player in players:
-            # Verify country exists in DB
-            row = await db.execute_fetchall(
-                "SELECT code FROM countries WHERE code = ?", (player.country_code,)
-            )
-            if not row:
-                continue
-            
-            await db.execute(
-                """INSERT OR IGNORE INTO players
-                   (id, name, country_code, position, detailed_position,
-                    club, league, age, market_value, photo, strength,
-                    pace, shooting, passing, dribbling, defending, physic)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (player.id, player.name, player.country_code,
-                 player.position, player.detailed_position,
-                 player.club, player.league, player.age, player.market_value,
-                 player.photo_url, player.strength,
-                 player.pace, player.shooting, player.passing,
-                 player.dribbling, player.defending, player.physic),
-            )
-            imported += 1
-        
-        await db.commit()
-        print(f"[OK] {imported} players imported from {data_source.get_source_name()}")
+        rows = await db.execute_fetchall("SELECT code FROM countries")
+        valid_codes = {r["code"] for r in rows}
     finally:
         await db.close()
+    
+    if not valid_codes:
+        print("[WARN] No countries in DB, skipping player import")
+        return
+    
+    # Stream: load one country file at a time, insert, free memory
+    total_imported = 0
+    async for batch in data_source.load_players_by_country():
+        if not batch:
+            continue
+        
+        db = await get_db()
+        try:
+            count = 0
+            for player in batch:
+                if player.country_code not in valid_codes:
+                    continue
+                
+                await db.execute(
+                    """INSERT OR IGNORE INTO players
+                       (id, name, country_code, position, detailed_position,
+                        club, league, age, market_value, photo, strength,
+                        pace, shooting, passing, dribbling, defending, physic)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (player.id, player.name, player.country_code,
+                     player.position, player.detailed_position,
+                     player.club, player.league, player.age, player.market_value,
+                     player.photo_url, player.strength,
+                     player.pace, player.shooting, player.passing,
+                     player.dribbling, player.defending, player.physic),
+                )
+                count += 1
+            
+            await db.commit()
+            total_imported += count
+        finally:
+            await db.close()
+    
+    print(f"[OK] {total_imported} players imported from {data_source.get_source_name()}")
 

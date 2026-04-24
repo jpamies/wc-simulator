@@ -6,6 +6,7 @@ and converts them to canonical Player objects.
 
 import json
 import os
+from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Optional
 
@@ -179,6 +180,57 @@ class EFEMPlayerDataSource(PlayerDataSource):
         
         print(f"[OK] Total: {len(players)} players loaded from EFEM")
         return players
+    
+    def _get_json_files(self) -> list[Path]:
+        """Get sorted list of country JSON files."""
+        if not self.data_dir.exists():
+            return []
+        return sorted([f for f in self.data_dir.glob("*.json") 
+                       if not f.name.startswith("_") and 
+                       f.name not in ("import_status.json", "README.md")])
+    
+    async def load_players_by_country(self) -> AsyncIterator[list[Player]]:
+        """Yield players one country at a time to limit memory usage."""
+        json_files = self._get_json_files()
+        if not json_files:
+            print("[WARN] EFEM data directory not found or empty")
+            return
+        
+        print(f"[DATA] Streaming EFEM players from {len(json_files)} country files...")
+        
+        for filepath in json_files:
+            try:
+                with open(filepath, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                
+                country_name = data.get("country", "Unknown")
+                source_info = data.get("source", {})
+                players_data = data.get("players", [])
+                
+                country_code = self._get_country_code(country_name, source_info, players_data)
+                if not country_code:
+                    print(f"  [WARN] Skipping {filepath.name}: Unknown country '{country_name}'")
+                    continue
+                
+                extracted_at = data.get("extracted_at")
+                batch = []
+                
+                for player_data in players_data:
+                    try:
+                        player = self._convert_player(
+                            player_data, country_code, country_name, extracted_at
+                        )
+                        batch.append(player)
+                    except Exception as e:
+                        continue
+                
+                print(f"  [OK] {filepath.name}: {len(batch)} players")
+                yield batch
+                # batch goes out of scope, memory freed
+                
+            except Exception as e:
+                print(f"  [ERR] Error loading {filepath.name}: {e}")
+                continue
     
     def _get_country_code(self, country_name: str, source_info: dict, players_data: list) -> Optional[str]:
         """Get country code from first player's nationCode, source metadata, or country name."""
