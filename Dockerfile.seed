@@ -1,0 +1,14 @@
+FROM python:3.11-slim
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY src/ src/
+COPY data/raw/efeme/ data/raw/efeme/
+COPY data/tournament/ data/tournament/
+COPY scripts/ scripts/
+
+ENV PYTHONUNBUFFERED=1
+
+CMD ["python", "-c", "import asyncio; from src.backend.database import init_db; from src.backend.services.data_import import import_all; asyncio.run(init_db()); asyncio.run(import_all())"]
