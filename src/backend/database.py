@@ -205,10 +205,15 @@ async def init_db():
         _pool = await asyncpg.create_pool(DATABASE_URL, min_size=2, max_size=10)
     
     async with _pool.acquire() as conn:
-        # Execute entire schema as a single transaction
-        await conn.execute(SCHEMA)
-    
-    print("[DB] PostgreSQL schema initialized")
+        # Check if schema already exists (countries is always the first table)
+        row = await conn.fetchval(
+            "SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_name = 'countries')"
+        )
+        if not row:
+            await conn.execute(SCHEMA)
+            print("[DB] PostgreSQL schema created")
+        else:
+            print("[DB] PostgreSQL schema already exists, skipping")
 
 
 async def close_pool():
