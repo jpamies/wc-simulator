@@ -73,14 +73,34 @@ def get_code(team_name: str) -> str | None:
 
 
 async def import_all():
-    """Import countries, players, groups and calendar if DB is empty."""
-    db = await get_db()
-    try:
-        row = await db.execute_fetchall("SELECT COUNT(*) as c FROM countries")
-        if row[0]["c"] > 0:
-            return
-    finally:
-        await db.close()
+    """Import countries, players, groups and calendar if DB is empty.
+    
+    Set WCS_FORCE_REIMPORT=1 to force re-import of player data even if DB has data.
+    """
+    force_reimport = os.environ.get("WCS_FORCE_REIMPORT", "0") == "1"
+    
+    if force_reimport:
+        print("[DATA] WCS_FORCE_REIMPORT=1 detected, clearing player data...")
+        db = await get_db()
+        try:
+            await db.execute("DELETE FROM player_match_stats")
+            await db.execute("DELETE FROM squad_selections")
+            await db.execute("DELETE FROM players")
+            await db.execute("DELETE FROM countries")
+            await db.execute("DELETE FROM matches")
+            await db.execute("DELETE FROM matchdays")
+            await db.commit()
+            print("[DATA] Player data cleared for reimport")
+        finally:
+            await db.close()
+    else:
+        db = await get_db()
+        try:
+            row = await db.execute_fetchall("SELECT COUNT(*) as c FROM countries")
+            if row[0]["c"] > 0:
+                return
+        finally:
+            await db.close()
 
     await _import_countries_from_groups()
     await _import_calendar()
