@@ -1,13 +1,19 @@
 FROM python:3.11-slim
 WORKDIR /app
 
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY src/ src/
-COPY data/raw/efeme/ data/raw/efeme/
 COPY data/tournament/ data/tournament/
 COPY scripts/ scripts/
+
+# Download EFEM data from GitHub Release
+RUN mkdir -p data/raw/efeme && \
+    curl -sL https://github.com/jpamies/wc-simulator/releases/download/full-db-v1/efeme.tar.gz | \
+    tar xz -C data/raw/efeme
 
 ENV PYTHONUNBUFFERED=1
 
