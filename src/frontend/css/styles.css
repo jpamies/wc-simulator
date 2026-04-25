@@ -249,7 +249,9 @@ tr:hover td { background: var(--bg-hover); }
   gap: 0.6rem;
   padding: 0.5rem 0;
   border-bottom: 1px solid var(--border);
+  transition: background 0.15s;
 }
+.player-row:hover { background: var(--bg-hover); border-radius: 6px; }
 .player-photo {
   width: 32px;
   height: 32px;
@@ -322,6 +324,33 @@ tr:hover td { background: var(--bg-hover); }
   text-transform: uppercase;
   letter-spacing: 0.03em;
   margin-top: 0.15rem;
+}
+
+/* ─── Player detail ─── */
+.pd-header { display: flex; gap: 1.5rem; align-items: flex-start; }
+.pd-photo-wrap { position: relative; flex-shrink: 0; }
+.pd-photo { width: 120px; height: 120px; border-radius: 12px; object-fit: cover; background: var(--bg-secondary); }
+.pd-ovr { position: absolute; bottom: -8px; right: -8px; background: var(--accent-gold); color: #000; font-weight: 800; font-size: 1.3rem; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 3px solid var(--bg-primary); }
+.pd-info { flex: 1; min-width: 0; }
+.pd-name { margin: 0 0 0.3rem; font-size: 1.5rem; }
+.pd-meta { display: flex; align-items: center; gap: 0.4rem; color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 0.3rem; flex-wrap: wrap; }
+.pd-sep { color: var(--text-muted); }
+.pd-meta-row { display: flex; gap: 0.5rem; margin-top: 0.8rem; flex-wrap: wrap; }
+.pd-chip { background: var(--bg-secondary); border-radius: 8px; padding: 0.4rem 0.7rem; display: flex; flex-direction: column; align-items: center; min-width: 60px; }
+.pd-chip-label { font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.pd-chip-val { font-size: 1.1rem; font-weight: 700; }
+.pd-val-money { color: var(--accent-green); }
+.pd-val-ovr { color: var(--accent-gold); }
+.pd-attrs { display: flex; flex-direction: column; gap: 0.6rem; }
+.pd-attr { display: flex; align-items: center; gap: 0.5rem; }
+.pd-attr-label { width: 70px; font-size: 0.85rem; color: var(--text-secondary); }
+.pd-attr-bar-bg { flex: 1; height: 8px; background: var(--bg-secondary); border-radius: 4px; overflow: hidden; }
+.pd-attr-bar { height: 100%; border-radius: 4px; transition: width 0.5s ease; }
+.pd-attr-val { width: 30px; text-align: right; font-weight: 700; font-size: 0.9rem; }
+@media (max-width: 600px) {
+  .pd-header { flex-direction: column; align-items: center; text-align: center; }
+  .pd-meta { justify-content: center; }
+  .pd-meta-row { justify-content: center; }
 }
 
 /* ─── Simulate page ─── */
