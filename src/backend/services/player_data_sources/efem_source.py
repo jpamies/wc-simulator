@@ -100,25 +100,17 @@ def _extract_position_from_proficiency(position_proficiency: dict) -> tuple[str,
 
 
 def _convert_market_value(efem_player: dict) -> int:
-    """Estimate market value from EFEM score and ability attributes.
+    """Get market value from EFEM data.
     
-    EFEM doesn't provide direct market value, so we derive it from:
-    - efemScore (0-100)
-    - currentAbility vs potential
-    - Reputation
-    
-    Simple formula: base value scaled by attributes.
+    Uses askingPrice (what the club asks) as primary value.
+    Falls back to recommendedBuyPrice if askingPrice is 0.
     """
-    efem_score = efem_player.get("efemScore", 50)
-    reputation = efem_player.get("reputation", 0)
-    current_ability = efem_player.get("currentAbility", 50)
+    asking = efem_player.get("askingPrice", 0) or 0
+    if asking > 0:
+        return int(asking)
     
-    # Base: 100k EUR per ability point, adjusted by reputation
-    base = current_ability * 100000
-    reputation_multiplier = 1 + (reputation * 0.1)
-    estimated_value = int(base * reputation_multiplier)
-    
-    return max(50000, min(estimated_value, 500000000))  # Clamp reasonable range
+    recommended = efem_player.get("recommendedBuyPrice", 0) or 0
+    return int(recommended)
 
 
 class EFEMPlayerDataSource(PlayerDataSource):
