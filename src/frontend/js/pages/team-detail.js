@@ -3,16 +3,22 @@ Router.register('/team/:code', async (params) => {
   app.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
 
   try {
-    const [country, allPlayers, squad, matches] = await Promise.all([
+    const [country, squad, matches] = await Promise.all([
       API.get(`/countries/${params.code}`),
-      API.get(`/countries/${params.code}/players`),
       API.get(`/squads/${params.code}`),
       API.get(`/matches?country=${params.code}`),
     ]);
 
-    // Use squad if available, otherwise fall back to all players
-    const players = squad.length > 0 ? squad : allPlayers;
-    const squadLabel = squad.length > 0 ? 'Convocatoria' : 'Plantilla completa';
+    // Only load all players if no squad selected (lazy load)
+    let players;
+    let squadLabel;
+    if (squad.length > 0) {
+      players = squad;
+      squadLabel = 'Convocatoria';
+    } else {
+      players = await API.get(`/countries/${params.code}/players?limit=100`);
+      squadLabel = 'Jugadores destacados';
+    }
 
     const byPos = { GK: [], DEF: [], MID: [], FWD: [] };
     players.forEach(p => (byPos[p.position] || []).push(p));

@@ -45,12 +45,12 @@ async def get_country(code: str):
 
 
 @router.get("/countries/{code}/players", response_model=list[PlayerOut])
-async def get_country_players(code: str):
+async def get_country_players(code: str, limit: int = Query(500, ge=1, le=5000)):
     db = await get_db()
     try:
         rows = await db.execute_fetchall(
-            "SELECT * FROM players WHERE country_code = $1 ORDER BY position, name",
-            (code,),
+            "SELECT * FROM players WHERE country_code = $1 ORDER BY strength DESC, name LIMIT $2",
+            (code, limit),
         )
         return [PlayerOut(**dict(r)) for r in rows]
     finally:
