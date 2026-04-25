@@ -353,6 +353,36 @@ tr:hover td { background: var(--bg-hover); }
   .pd-meta-row { justify-content: center; }
 }
 
+/* ─── Stats page ─── */
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 1rem; }
+.stat-row { display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0; border-bottom: 1px solid var(--border); transition: background 0.15s; }
+.stat-row:hover { background: var(--bg-hover); border-radius: 6px; }
+.stat-photo { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; background: var(--bg-secondary); flex-shrink: 0; }
+.stat-player-info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.stat-player-name { font-weight: 500; font-size: 0.85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stat-player-meta { font-size: 0.7rem; color: var(--text-muted); }
+.stat-numbers { display: flex; flex-direction: column; align-items: center; min-width: 32px; }
+.stat-main { font-size: 1.1rem; font-weight: 700; color: var(--accent-gold); }
+.stat-secondary { font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); }
+.stat-label { font-size: 0.6rem; color: var(--text-muted); text-transform: uppercase; }
+.stat-empty { color: var(--text-muted); font-style: italic; padding: 1rem 0; }
+.stats-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.stats-table th { text-align: left; padding: 0.3rem 0.4rem; color: var(--text-muted); font-weight: 500; font-size: 0.75rem; text-transform: uppercase; border-bottom: 1px solid var(--border); }
+.stats-table td { padding: 0.35rem 0.4rem; border-bottom: 1px solid var(--border); }
+.stats-table tr:hover { background: var(--bg-hover); }
+.stat-gf { color: var(--accent-green); font-weight: 600; }
+.stat-gc { color: var(--text-muted); }
+
+/* ─── Player career stats ─── */
+.pd-career { display: grid; grid-template-columns: repeat(auto-fit, minmax(80px, 1fr)); gap: 0.5rem; }
+.pd-career-stat { background: var(--bg-secondary); border-radius: 8px; padding: 0.5rem; text-align: center; }
+.pd-career-val { font-size: 1.2rem; font-weight: 700; color: var(--accent-gold); }
+.pd-career-label { font-size: 0.6rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.pd-match-row { display: flex; align-items: center; gap: 0.5rem; padding: 0.3rem 0; border-bottom: 1px solid var(--border); font-size: 0.8rem; }
+.pd-match-result { font-weight: 600; min-width: 40px; }
+.pd-match-stats { display: flex; gap: 0.4rem; color: var(--text-secondary); }
+.pd-match-rating { font-weight: 700; min-width: 28px; text-align: right; }
+
 /* ─── Simulate page ─── */
 .sim-controls {
   display: flex;

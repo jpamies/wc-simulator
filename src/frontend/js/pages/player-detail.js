@@ -3,8 +3,14 @@ Router.register('/player/:id', async (params) => {
   app.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
 
   try {
-    const p = await API.get(`/players/${params.id}`);
+    const [p, careerData] = await Promise.all([
+      API.get(`/players/${params.id}`),
+      API.get(`/stats/player/${params.id}`).catch(() => ({ summary: {}, matches: [] })),
+    ]);
     const country = await API.get(`/countries/${p.country_code}`);
+    const cs = careerData.summary || {};
+    const matchHistory = careerData.matches || [];
+    const hasStats = cs.matches > 0;
 
     const attrs = [
       { label: 'Ritmo', key: 'pace', color: '#2dd4bf' },
@@ -71,6 +77,48 @@ Router.register('/player/:id', async (params) => {
           }).join('')}
         </div>
       </div>
+
+      ${hasStats ? `
+      <div class="card">
+        <div class="card-title">Estadisticas del Torneo</div>
+        <div class="pd-career">
+          <div class="pd-career-stat"><span class="pd-career-val">${cs.matches}</span><span class="pd-career-label">Partidos</span></div>
+          <div class="pd-career-stat"><span class="pd-career-val">${cs.starts}</span><span class="pd-career-label">Titular</span></div>
+          <div class="pd-career-stat"><span class="pd-career-val">${cs.minutes}</span><span class="pd-career-label">Minutos</span></div>
+          <div class="pd-career-stat"><span class="pd-career-val">${cs.goals}</span><span class="pd-career-label">Goles</span></div>
+          <div class="pd-career-stat"><span class="pd-career-val">${cs.assists}</span><span class="pd-career-label">Asist.</span></div>
+          <div class="pd-career-stat"><span class="pd-career-val">${cs.avg_rating}</span><span class="pd-career-label">Media</span></div>
+          <div class="pd-career-stat"><span class="pd-career-val" style="color:#eab308">${cs.yellows}</span><span class="pd-career-label">Amarillas</span></div>
+          <div class="pd-career-stat"><span class="pd-career-val" style="color:#ef4444">${cs.reds}</span><span class="pd-career-label">Rojas</span></div>
+          ${p.position === 'GK' ? `
+            <div class="pd-career-stat"><span class="pd-career-val">${cs.saves}</span><span class="pd-career-label">Paradas</span></div>
+            <div class="pd-career-stat"><span class="pd-career-val">${cs.goals_conceded}</span><span class="pd-career-label">GC</span></div>
+            <div class="pd-career-stat"><span class="pd-career-val">${cs.clean_sheets}</span><span class="pd-career-label">Imbatido</span></div>
+          ` : ''}
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Historial de Partidos</div>
+        ${matchHistory.map(m => {
+          const ratingColor = m.rating >= 7.5 ? 'var(--accent-green)' : m.rating >= 6.5 ? 'var(--accent-gold)' : 'var(--text-muted)';
+          return `
+          <div class="pd-match-row">
+            <span class="pd-match-result">${m.score_home}-${m.score_away}</span>
+            <span style="flex:1;font-size:0.8rem">${m.home_team} vs ${m.away_team}</span>
+            <div class="pd-match-stats">
+              ${m.goals ? `<span>${m.goals}g</span>` : ''}
+              ${m.assists ? `<span>${m.assists}a</span>` : ''}
+              ${m.yellow_cards ? `<span style="color:#eab308">${m.yellow_cards}TA</span>` : ''}
+              ${m.red_card ? `<span style="color:#ef4444">TR</span>` : ''}
+              ${m.saves ? `<span>${m.saves}sv</span>` : ''}
+              <span>${m.minutes_played}'</span>
+            </div>
+            <span class="pd-match-rating" style="color:${ratingColor}">${m.rating}</span>
+          </div>`;
+        }).join('')}
+      </div>
+      ` : ''}
     `;
   } catch (e) {
     app.innerHTML = `<div class="card"><p>Error: ${e.message}</p></div>`;

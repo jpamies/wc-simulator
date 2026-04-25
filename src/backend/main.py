@@ -21,6 +21,7 @@ from src.backend.routes.data import router as data_router
 from src.backend.routes.matches import router as matches_router
 from src.backend.routes.simulation import router as simulation_router
 from src.backend.routes.squads import router as squads_router
+from src.backend.routes.stats import router as stats_router
 
 logger = logging.getLogger("wc-simulator")
 
@@ -90,6 +91,7 @@ app.include_router(data_router, prefix="/api/v1")
 app.include_router(matches_router, prefix="/api/v1")
 app.include_router(simulation_router, prefix="/api/v1")
 app.include_router(squads_router, prefix="/api/v1")
+app.include_router(stats_router, prefix="/api/v1")
 
 
 @app.get("/api/v1/health")
