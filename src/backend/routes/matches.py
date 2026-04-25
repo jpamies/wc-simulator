@@ -48,6 +48,67 @@ async def list_matches(
         await db.close()
 
 
+@router.get("/finished-with-stats")
+async def get_finished_matches_with_stats(match_ids: str | None = None):
+    """Get all finished matches with their player stats.
+    Optionally filter by comma-separated match_ids to get only specific matches.
+    Used by fantasy for scoring sync."""
+    db = await get_db()
+    try:
+        if match_ids:
+            ids = [m.strip() for m in match_ids.split(",")]
+            placeholders = ",".join(f"${i+1}" for i in range(len(ids)))
+            matches = await db.execute_fetchall(f"""
+                SELECT m.*, h.flag as home_flag, a.flag as away_flag
+                FROM matches m
+                LEFT JOIN countries h ON m.home_code = h.code
+                LEFT JOIN countries a ON m.away_code = a.code
+                WHERE m.id IN ({placeholders}) AND m.status = 'finished'
+                ORDER BY m.kickoff
+            """, ids)
+        else:
+            matches = await db.execute_fetchall("""
+                SELECT m.*, h.flag as home_flag, a.flag as away_flag
+                FROM matches m
+                LEFT JOIN countries h ON m.home_code = h.code
+                LEFT JOIN countries a ON m.away_code = a.code
+                WHERE m.status = 'finished'
+                ORDER BY m.kickoff
+            """)
+        
+        if not matches:
+            return []
+        
+        # Get all stats for these matches in one query
+        match_id_list = [m["id"] for m in matches]
+        placeholders = ",".join(f"${i+1}" for i in range(len(match_id_list)))
+        all_stats = await db.execute_fetchall(f"""
+            SELECT pms.*, p.name as player_name, p.country_code, p.position
+            FROM player_match_stats pms
+            JOIN players p ON pms.player_id = p.id
+            WHERE pms.match_id IN ({placeholders})
+            ORDER BY pms.match_id, p.country_code, pms.is_starter DESC
+        """, match_id_list)
+        
+        # Group stats by match_id
+        stats_by_match: dict[str, list] = {}
+        for s in all_stats:
+            mid = s["match_id"]
+            if mid not in stats_by_match:
+                stats_by_match[mid] = []
+            stats_by_match[mid].append(s)
+        
+        return [
+            {
+                "match": dict(m),
+                "stats": stats_by_match.get(m["id"], []),
+            }
+            for m in matches
+        ]
+    finally:
+        await db.close()
+
+
 @router.get("/{match_id}", response_model=MatchOut)
 async def get_match(match_id: str):
     db = await get_db()
