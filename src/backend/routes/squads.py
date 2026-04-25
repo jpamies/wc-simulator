@@ -81,6 +81,24 @@ async def list_squads():
         await db.close()
 
 
+@router.get("/all-players", response_model=list[PlayerOut])
+async def get_all_squad_players():
+    """Get all squad-selected players across all 48 countries in one call."""
+    db = await get_db()
+    try:
+        rows = await db.execute_fetchall("""
+            SELECT p.* FROM players p
+            JOIN squad_selections s ON s.player_id = p.id
+            ORDER BY p.country_code, 
+                CASE p.position WHEN 'GK' THEN 1 WHEN 'DEF' THEN 2
+                     WHEN 'MID' THEN 3 WHEN 'FWD' THEN 4 END,
+                p.strength DESC
+        """)
+        return [PlayerOut(**dict(r)) for r in rows]
+    finally:
+        await db.close()
+
+
 @router.get("/{country_code}", response_model=list[PlayerOut])
 async def get_squad(country_code: str):
     """Get the selected squad for a country."""
