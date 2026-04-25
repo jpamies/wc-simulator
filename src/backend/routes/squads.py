@@ -8,6 +8,32 @@ from src.backend.models import PlayerOut
 router = APIRouter(prefix="/squads", tags=["squads"])
 
 
+async def _update_squad_stats(db, country_code: str):
+    """Recompute and store squad stats for a country after selection changes."""
+    rows = await db.execute_fetchall("""
+        SELECT COUNT(*) as squad_size,
+               COUNT(*) FILTER (WHERE p.position = 'GK') as gk,
+               COUNT(*) FILTER (WHERE p.position = 'DEF') as defs,
+               COUNT(*) FILTER (WHERE p.position = 'MID') as mids,
+               COUNT(*) FILTER (WHERE p.position = 'FWD') as fwds,
+               COALESCE(AVG(p.strength), 0) as avg_strength,
+               COALESCE(SUM(p.market_value), 0) as total_value
+        FROM squad_selections s
+        JOIN players p ON s.player_id = p.id
+        WHERE s.country_code = $1
+    """, (country_code,))
+    r = rows[0]
+    await db.execute("""
+        INSERT INTO squad_stats (country_code, squad_size, gk, defs, mids, fwds, avg_strength, total_value)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        ON CONFLICT (country_code) DO UPDATE SET
+            squad_size = EXCLUDED.squad_size, gk = EXCLUDED.gk, defs = EXCLUDED.defs,
+            mids = EXCLUDED.mids, fwds = EXCLUDED.fwds,
+            avg_strength = EXCLUDED.avg_strength, total_value = EXCLUDED.total_value
+    """, (country_code, r["squad_size"], r["gk"], r["defs"], r["mids"], r["fwds"],
+          r["avg_strength"], r["total_value"]))
+
+
 class SquadIn(BaseModel):
     player_ids: list[str]
 
@@ -28,36 +54,24 @@ class SquadOverview(BaseModel):
 
 @router.get("", response_model=list[SquadOverview])
 async def list_squads():
-    """List all countries with their squad selection status."""
+    """List all countries with their squad selection status (pre-computed)."""
     db = await get_db()
     try:
         rows = await db.execute_fetchall("""
             SELECT c.code, c.name, c.flag,
                    COALESCE(pc.cnt, 0) as total_players,
-                   COALESCE(sq.squad_size, 0) as squad_size,
-                   COALESCE(sq.gk, 0) as gk,
-                   COALESCE(sq.defs, 0) as defs,
-                   COALESCE(sq.mids, 0) as mids,
-                   COALESCE(sq.fwds, 0) as fwds,
-                   COALESCE(sq.avg_strength, 0) as avg_strength,
-                   COALESCE(sq.total_value, 0) as total_value
+                   COALESCE(ss.squad_size, 0) as squad_size,
+                   COALESCE(ss.gk, 0) as gk,
+                   COALESCE(ss.defs, 0) as defs,
+                   COALESCE(ss.mids, 0) as mids,
+                   COALESCE(ss.fwds, 0) as fwds,
+                   COALESCE(ss.avg_strength, 0) as avg_strength,
+                   COALESCE(ss.total_value, 0) as total_value
             FROM countries c
             LEFT JOIN (
                 SELECT country_code, COUNT(*) as cnt FROM players GROUP BY country_code
             ) pc ON pc.country_code = c.code
-            LEFT JOIN (
-                SELECT s.country_code,
-                       COUNT(*) as squad_size,
-                       COUNT(*) FILTER (WHERE p.position = 'GK') as gk,
-                       COUNT(*) FILTER (WHERE p.position = 'DEF') as defs,
-                       COUNT(*) FILTER (WHERE p.position = 'MID') as mids,
-                       COUNT(*) FILTER (WHERE p.position = 'FWD') as fwds,
-                       AVG(p.strength) as avg_strength,
-                       SUM(p.market_value) as total_value
-                FROM squad_selections s
-                JOIN players p ON s.player_id = p.id
-                GROUP BY s.country_code
-            ) sq ON sq.country_code = c.code
+            LEFT JOIN squad_stats ss ON ss.country_code = c.code
             ORDER BY c.name
         """)
         return [SquadOverview(
@@ -130,6 +144,8 @@ async def save_squad(country_code: str, data: SquadIn):
                 "INSERT INTO squad_selections (country_code, player_id) VALUES ($1, $2)",
                 (country_code, pid),
             )
+        
+        await _update_squad_stats(db, country_code)
         await db.commit()
 
         return {"status": "ok", "country_code": country_code, "squad_size": len(data.player_ids)}
@@ -167,6 +183,8 @@ async def auto_select_squad(country_code: str):
                 "INSERT INTO squad_selections (country_code, player_id) VALUES ($1, $2)",
                 (country_code, pid),
             )
+        
+        await _update_squad_stats(db, country_code)
         await db.commit()
 
         return {"status": "ok", "country_code": country_code, "squad_size": len(selected)}

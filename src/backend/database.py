@@ -133,6 +133,18 @@ CREATE TABLE IF NOT EXISTS squad_selections (
     PRIMARY KEY (country_code, player_id)
 );
 CREATE INDEX IF NOT EXISTS idx_squad_country ON squad_selections(country_code);
+
+-- ─── Squad stats (pre-computed for fast reads) ───
+CREATE TABLE IF NOT EXISTS squad_stats (
+    country_code TEXT PRIMARY KEY REFERENCES countries(code),
+    squad_size INTEGER DEFAULT 0,
+    gk INTEGER DEFAULT 0,
+    defs INTEGER DEFAULT 0,
+    mids INTEGER DEFAULT 0,
+    fwds INTEGER DEFAULT 0,
+    avg_strength REAL DEFAULT 0,
+    total_value BIGINT DEFAULT 0
+);
 """
 
 

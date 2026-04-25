@@ -86,6 +86,7 @@ async def import_all():
             # Delete in FK-safe order (children before parents)
             await db.execute("DELETE FROM player_match_stats")
             await db.execute("DELETE FROM group_standings")
+            await db.execute("DELETE FROM squad_stats")
             await db.execute("DELETE FROM squad_selections")
             await db.execute("DELETE FROM matches")
             await db.execute("DELETE FROM matchdays")
