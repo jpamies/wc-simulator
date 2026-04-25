@@ -14,11 +14,7 @@ async def list_countries():
     db = await get_db()
     try:
         rows = await db.execute_fetchall("""
-            SELECT c.*, COALESCE(pc.cnt, 0) as player_count
-            FROM countries c
-            LEFT JOIN (SELECT country_code, COUNT(*) as cnt FROM players GROUP BY country_code) pc
-                ON pc.country_code = c.code
-            ORDER BY c.name ASC
+            SELECT * FROM countries ORDER BY name ASC
         """)
         return [CountryOut(**dict(r)) for r in rows]
     finally:
@@ -30,11 +26,7 @@ async def get_country(code: str):
     db = await get_db()
     try:
         rows = await db.execute_fetchall("""
-            SELECT c.*, COALESCE(pc.cnt, 0) as player_count
-            FROM countries c
-            LEFT JOIN (SELECT country_code, COUNT(*) as cnt FROM players GROUP BY country_code) pc
-                ON pc.country_code = c.code
-            WHERE c.code = $1
+            SELECT * FROM countries WHERE code = $1
         """, (code,))
         if not rows:
             from fastapi import HTTPException

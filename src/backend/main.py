@@ -1,6 +1,8 @@
 """WC Simulator 2026 — Main FastAPI application."""
 
+import logging
 import os
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 from fastapi import FastAPI
@@ -19,6 +21,8 @@ from src.backend.routes.data import router as data_router
 from src.backend.routes.matches import router as matches_router
 from src.backend.routes.simulation import router as simulation_router
 from src.backend.routes.squads import router as squads_router
+
+logger = logging.getLogger("wc-simulator")
 
 
 @asynccontextmanager
@@ -50,6 +54,13 @@ class NoCacheStaticMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         response = await call_next(request)
         path = request.url.path
+        # Log slow API requests (>500ms)
+        if path.startswith("/api/"):
+            duration = response.headers.get("X-Response-Time")
+            if duration:
+                ms = float(duration)
+                if ms > 500:
+                    logger.warning(f"SLOW {request.method} {path} took {ms:.0f}ms")
         if not path.startswith("/api/"):
             if path.endswith(".html") or path == "/" or "." not in path.split("/")[-1]:
                 response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
@@ -58,6 +69,19 @@ class NoCacheStaticMiddleware(BaseHTTPMiddleware):
         return response
 
 
+class TimingMiddleware(BaseHTTPMiddleware):
+    """Add X-Response-Time header and log slow API requests."""
+    async def dispatch(self, request: Request, call_next):
+        start = time.perf_counter()
+        response = await call_next(request)
+        ms = (time.perf_counter() - start) * 1000
+        response.headers["X-Response-Time"] = f"{ms:.0f}"
+        if request.url.path.startswith("/api/") and ms > 200:
+            logger.warning(f"SLOW {request.method} {request.url.path} {ms:.0f}ms")
+        return response
+
+
+app.add_middleware(TimingMiddleware)
 app.add_middleware(NoCacheStaticMiddleware)
 
 # ─── API routes under /api/v1 ───

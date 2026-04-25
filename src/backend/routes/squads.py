@@ -59,7 +59,7 @@ async def list_squads():
     try:
         rows = await db.execute_fetchall("""
             SELECT c.code, c.name, c.flag,
-                   COALESCE(pc.cnt, 0) as total_players,
+                   COALESCE(c.player_count, 0) as total_players,
                    COALESCE(ss.squad_size, 0) as squad_size,
                    COALESCE(ss.gk, 0) as gk,
                    COALESCE(ss.defs, 0) as defs,
@@ -68,9 +68,6 @@ async def list_squads():
                    COALESCE(ss.avg_strength, 0) as avg_strength,
                    COALESCE(ss.total_value, 0) as total_value
             FROM countries c
-            LEFT JOIN (
-                SELECT country_code, COUNT(*) as cnt FROM players GROUP BY country_code
-            ) pc ON pc.country_code = c.code
             LEFT JOIN squad_stats ss ON ss.country_code = c.code
             ORDER BY c.name
         """)

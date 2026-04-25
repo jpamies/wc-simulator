@@ -5,10 +5,14 @@ by routes and services: get_db(), db.execute(), db.execute_fetchall(),
 db.commit(), db.close().
 """
 
+import logging
+import time
 import asyncpg
 from src.backend.config import DATABASE_URL
 
 _pool: asyncpg.Pool | None = None
+logger = logging.getLogger("wc-simulator.db")
+SLOW_QUERY_MS = 100  # Log queries slower than this
 
 SCHEMA = """
 -- ─── Countries ───
@@ -18,7 +22,8 @@ CREATE TABLE IF NOT EXISTS countries (
     name_local TEXT,
     flag TEXT,
     confederation TEXT,
-    group_letter TEXT
+    group_letter TEXT,
+    player_count INTEGER DEFAULT 0
 );
 
 -- ─── Players ───
@@ -44,6 +49,8 @@ CREATE TABLE IF NOT EXISTS players (
 );
 CREATE INDEX IF NOT EXISTS idx_players_country ON players(country_code);
 CREATE INDEX IF NOT EXISTS idx_players_position ON players(position);
+CREATE INDEX IF NOT EXISTS idx_players_country_pos_str ON players(country_code, position, strength DESC);
+CREATE INDEX IF NOT EXISTS idx_players_country_str ON players(country_code, strength DESC);
 
 -- ─── Matchdays ───
 CREATE TABLE IF NOT EXISTS matchdays (
@@ -171,17 +178,25 @@ class PgConnection:
         if self._tx is None:
             self._tx = self._conn.transaction()
             await self._tx.start()
+        start = time.perf_counter()
         if params:
             await self._conn.execute(sql, *params)
         else:
             await self._conn.execute(sql)
+        ms = (time.perf_counter() - start) * 1000
+        if ms > SLOW_QUERY_MS:
+            logger.warning(f"SLOW EXEC ({ms:.0f}ms): {sql[:120]}")
     
     async def execute_fetchall(self, sql: str, params=None) -> list[dict]:
         """Execute a query and return all rows as list of dicts."""
+        start = time.perf_counter()
         if params:
             rows = await self._conn.fetch(sql, *params)
         else:
             rows = await self._conn.fetch(sql)
+        ms = (time.perf_counter() - start) * 1000
+        if ms > SLOW_QUERY_MS:
+            logger.warning(f"SLOW QUERY ({ms:.0f}ms, {len(rows)} rows): {sql[:120]}")
         return [dict(r) for r in rows]
     
     async def commit(self):
