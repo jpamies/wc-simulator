@@ -140,6 +140,7 @@ CREATE TABLE IF NOT EXISTS squad_selections (
     PRIMARY KEY (country_code, player_id)
 );
 CREATE INDEX IF NOT EXISTS idx_squad_country ON squad_selections(country_code);
+CREATE INDEX IF NOT EXISTS idx_squad_player ON squad_selections(player_id);
 
 -- ─── Squad stats (pre-computed for fast reads) ───
 CREATE TABLE IF NOT EXISTS squad_stats (
