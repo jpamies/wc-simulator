@@ -81,23 +81,9 @@ async def list_squads():
         await db.close()
 
 
-import time as _time
-
-_squad_players_cache: list | None = None
-_squad_players_ts: float = 0
-_CACHE_TTL = 300  # 5 minutes
-
-
 @router.get("/all-players", response_model=list[PlayerOut])
 async def get_all_squad_players():
-    """Get all squad-selected players across all 48 countries in one call.
-    Cached for 5 minutes since squads rarely change."""
-    global _squad_players_cache, _squad_players_ts
-    
-    now = _time.time()
-    if _squad_players_cache is not None and (now - _squad_players_ts) < _CACHE_TTL:
-        return _squad_players_cache
-    
+    """Get all squad-selected players across all 48 countries in one call."""
     db = await get_db()
     try:
         rows = await db.execute_fetchall("""
@@ -108,10 +94,7 @@ async def get_all_squad_players():
                      WHEN 'MID' THEN 3 WHEN 'FWD' THEN 4 END,
                 p.strength DESC
         """)
-        result = [PlayerOut(**dict(r)) for r in rows]
-        _squad_players_cache = result
-        _squad_players_ts = now
-        return result
+        return [PlayerOut(**dict(r)) for r in rows]
     finally:
         await db.close()
 
@@ -179,8 +162,6 @@ async def save_squad(country_code: str, data: SquadIn):
         
         await _update_squad_stats(db, country_code)
         await db.commit()
-        global _squad_players_cache
-        _squad_players_cache = None
 
         return {"status": "ok", "country_code": country_code, "squad_size": len(data.player_ids)}
     finally:
@@ -220,8 +201,6 @@ async def auto_select_squad(country_code: str):
         
         await _update_squad_stats(db, country_code)
         await db.commit()
-        global _squad_players_cache
-        _squad_players_cache = None
 
         return {"status": "ok", "country_code": country_code, "squad_size": len(selected)}
     finally:
