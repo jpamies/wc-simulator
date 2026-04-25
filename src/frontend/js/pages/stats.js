@@ -3,16 +3,15 @@ Router.register('/stats', async () => {
   app.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
 
   try {
-    const [scorers, assists, rated, cards, keepers, teams] = await Promise.all([
+    const [scorers, assists, rated, cards, keepers] = await Promise.all([
       API.get('/stats/top-scorers?limit=15'),
       API.get('/stats/top-assists?limit=15'),
       API.get('/stats/top-rated?limit=15'),
       API.get('/stats/top-cards?limit=15'),
       API.get('/stats/top-keepers?limit=15'),
-      API.get('/stats/team-stats'),
     ]);
 
-    const hasData = scorers.length > 0 || teams.length > 0;
+    const hasData = scorers.length > 0;
 
     if (!hasData) {
       app.innerHTML = `
@@ -82,29 +81,6 @@ Router.register('/stats', async () => {
              <div class="stat-numbers"><span class="stat-secondary">${p.goals_conceded}</span><span class="stat-label">GC</span></div>
              <div class="stat-numbers"><span class="stat-secondary">${p.avg_rating}</span><span class="stat-label">media</span></div>`
           )).join('') : '<p class="stat-empty">Sin datos</p>'}
-        </div>
-
-        <div class="card">
-          <div class="card-title">Selecciones</div>
-          ${teams.length ? `
-            <table class="stats-table">
-              <thead><tr><th></th><th>Equipo</th><th>PJ</th><th>G</th><th>E</th><th>P</th><th>GF</th><th>GC</th></tr></thead>
-              <tbody>
-                ${teams.map(t => `
-                  <tr onclick="location.hash='#/team/${t.code}'" style="cursor:pointer">
-                    <td>${flagImg(t.flag, 20)}</td>
-                    <td>${t.name}</td>
-                    <td>${t.matches_played}</td>
-                    <td>${t.wins}</td>
-                    <td>${t.draws}</td>
-                    <td>${t.losses}</td>
-                    <td class="stat-gf">${t.goals_for}</td>
-                    <td class="stat-gc">${t.goals_against}</td>
-                  </tr>
-                `).join('')}
-              </tbody>
-            </table>
-          ` : '<p class="stat-empty">Sin datos</p>'}
         </div>
       </div>
     `;
