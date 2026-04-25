@@ -102,15 +102,15 @@ def _extract_position_from_proficiency(position_proficiency: dict) -> tuple[str,
 def _convert_market_value(efem_player: dict) -> int:
     """Get market value from EFEM data.
     
-    Uses askingPrice (what the club asks) as primary value.
-    Falls back to recommendedBuyPrice if askingPrice is 0.
+    Uses recommendedBuyPrice (estimated fair market value).
+    Falls back to askingPrice if recommendedBuyPrice is 0.
     """
-    asking = efem_player.get("askingPrice", 0) or 0
-    if asking > 0:
-        return int(asking)
-    
     recommended = efem_player.get("recommendedBuyPrice", 0) or 0
-    return int(recommended)
+    if recommended > 0:
+        return int(recommended)
+    
+    asking = efem_player.get("askingPrice", 0) or 0
+    return int(asking)
 
 
 class EFEMPlayerDataSource(PlayerDataSource):
