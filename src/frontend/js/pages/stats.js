@@ -21,23 +21,32 @@ Router.register('/stats', async () => {
       return;
     }
 
-    function playerRow(p, mainStat, mainLabel, extraStats) {
+    // stats: [{value, highlight?}, ...] in same order as labels in header
+    function playerRow(p, stats, idx) {
+      const cells = stats.map(s => `<span class="stat-cell ${s.highlight ? 'stat-cell-main' : ''}">${s.value}</span>`).join('');
       return `
         <div class="stat-row" style="cursor:pointer" onclick="location.hash='#/player/${p.id}'">
-          <div class="stat-player-block">
-            <div class="stat-photo-row">
-              <img src="${p.photo || ''}" alt="" class="stat-photo" referrerpolicy="no-referrer" onerror="this.style.display='none'">
-              ${posBadge(p.position || 'GK')}
-            </div>
+          <span class="stat-rank">${idx + 1}</span>
+          <div class="stat-photo-row">
+            <img src="${p.photo || ''}" alt="" class="stat-photo" referrerpolicy="no-referrer" onerror="this.style.display='none'">
+            ${posBadge(p.position || 'GK')}
+          </div>
+          <div class="stat-name-col">
             <span class="stat-player-name" title="${p.name}">${p.name}</span>
+            <span class="stat-name-flag">${flagImg(p.country_flag, 16)}</span>
           </div>
-          <div class="stat-country-flag">${flagImg(p.country_flag, 28)}</div>
-          <div class="stat-numbers">
-            <span class="stat-main">${mainStat}</span>
-            <span class="stat-label">${mainLabel}</span>
-          </div>
-          ${extraStats}
+          <div class="stat-cells">${cells}</div>
         </div>`;
+    }
+
+    function statHeader(labels) {
+      const cells = labels.map(l => `<span class="stat-cell">${l}</span>`).join('');
+      return `<div class="stat-row stat-header">
+        <span class="stat-rank"></span>
+        <div class="stat-photo-row" style="visibility:hidden"><div class="stat-photo"></div></div>
+        <div class="stat-name-col"></div>
+        <div class="stat-cells">${cells}</div>
+      </div>`;
     }
 
     app.innerHTML = `
@@ -46,43 +55,48 @@ Router.register('/stats', async () => {
       <div class="stats-grid">
         <div class="card">
           <div class="card-title">Goleadores</div>
-          ${scorers.length ? scorers.map((p, i) => playerRow(p, p.goals, 'goles',
-            `<div class="stat-numbers"><span class="stat-secondary">${p.assists}</span><span class="stat-label">ast</span></div>
-             <div class="stat-numbers"><span class="stat-secondary">${p.matches}</span><span class="stat-label">PJ</span></div>`
-          )).join('') : '<p class="stat-empty">Sin datos</p>'}
+          ${scorers.length ? statHeader(['GOL', 'AST', 'PJ']) + scorers.map((p, i) => playerRow(p, [
+            {value: p.goals, highlight: true},
+            {value: p.assists},
+            {value: p.matches},
+          ], i)).join('') : '<p class="stat-empty">Sin datos</p>'}
         </div>
 
         <div class="card">
           <div class="card-title">Asistentes</div>
-          ${assists.length ? assists.map((p, i) => playerRow(p, p.assists, 'ast',
-            `<div class="stat-numbers"><span class="stat-secondary">${p.goals}</span><span class="stat-label">goles</span></div>
-             <div class="stat-numbers"><span class="stat-secondary">${p.matches}</span><span class="stat-label">PJ</span></div>`
-          )).join('') : '<p class="stat-empty">Sin datos</p>'}
+          ${assists.length ? statHeader(['AST', 'GOL', 'PJ']) + assists.map((p, i) => playerRow(p, [
+            {value: p.assists, highlight: true},
+            {value: p.goals},
+            {value: p.matches},
+          ], i)).join('') : '<p class="stat-empty">Sin datos</p>'}
         </div>
 
         <div class="card">
           <div class="card-title">Mejor Puntuacion</div>
-          ${rated.length ? rated.map((p, i) => playerRow(p, p.avg_rating, 'media',
-            `<div class="stat-numbers"><span class="stat-secondary">${p.goals}</span><span class="stat-label">goles</span></div>
-             <div class="stat-numbers"><span class="stat-secondary">${p.matches}</span><span class="stat-label">PJ</span></div>`
-          )).join('') : '<p class="stat-empty">Sin datos</p>'}
+          ${rated.length ? statHeader(['MEDIA', 'GOL', 'PJ']) + rated.map((p, i) => playerRow(p, [
+            {value: p.avg_rating, highlight: true},
+            {value: p.goals},
+            {value: p.matches},
+          ], i)).join('') : '<p class="stat-empty">Sin datos</p>'}
         </div>
 
         <div class="card">
           <div class="card-title">Tarjetas</div>
-          ${cards.length ? cards.map((p, i) => playerRow(p,
-            `<span style="color:#eab308">${p.yellows}</span>/<span style="color:#ef4444">${p.reds}</span>`, 'TA/TR',
-            `<div class="stat-numbers"><span class="stat-secondary">${p.matches}</span><span class="stat-label">PJ</span></div>`
-          )).join('') : '<p class="stat-empty">Sin datos</p>'}
+          ${cards.length ? statHeader(['TA', 'TR', 'PJ']) + cards.map((p, i) => playerRow(p, [
+            {value: `<span style="color:#eab308">${p.yellows}</span>`, highlight: true},
+            {value: `<span style="color:#ef4444">${p.reds}</span>`, highlight: true},
+            {value: p.matches},
+          ], i)).join('') : '<p class="stat-empty">Sin datos</p>'}
         </div>
 
         <div class="card">
           <div class="card-title">Porteros</div>
-          ${keepers.length ? keepers.map((p, i) => playerRow(p, p.clean_sheets, 'imbatido',
-            `<div class="stat-numbers"><span class="stat-secondary">${p.saves}</span><span class="stat-label">paradas</span></div>
-             <div class="stat-numbers"><span class="stat-secondary">${p.goals_conceded}</span><span class="stat-label">GC</span></div>
-             <div class="stat-numbers"><span class="stat-secondary">${p.avg_rating}</span><span class="stat-label">media</span></div>`
-          )).join('') : '<p class="stat-empty">Sin datos</p>'}
+          ${keepers.length ? statHeader(['IMB', 'PAR', 'GC', 'MED']) + keepers.map((p, i) => playerRow(p, [
+            {value: p.clean_sheets, highlight: true},
+            {value: p.saves},
+            {value: p.goals_conceded},
+            {value: p.avg_rating},
+          ], i)).join('') : '<p class="stat-empty">Sin datos</p>'}
         </div>
       </div>
     `;
