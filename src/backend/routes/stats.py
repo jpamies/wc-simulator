@@ -11,15 +11,16 @@ async def top_scorers(limit: int = Query(20, ge=1, le=100)):
     db = await get_db()
     try:
         rows = await db.execute_fetchall("""
-            SELECT p.id, p.name, p.country_code, p.position, p.photo, p.club,
+            SELECT p.id, p.name, p.country_code, c.flag as country_flag, p.position, p.photo, p.club,
                    SUM(pms.goals) as goals,
                    SUM(pms.assists) as assists,
                    COUNT(pms.id) as matches,
                    SUM(pms.minutes_played) as minutes
             FROM player_match_stats pms
             JOIN players p ON pms.player_id = p.id
+            LEFT JOIN countries c ON c.code = p.country_code
             WHERE pms.goals > 0 OR pms.assists > 0
-            GROUP BY p.id
+            GROUP BY p.id, c.flag
             ORDER BY goals DESC, assists DESC
             LIMIT $1
         """, (limit,))
@@ -33,15 +34,16 @@ async def top_assists(limit: int = Query(20, ge=1, le=100)):
     db = await get_db()
     try:
         rows = await db.execute_fetchall("""
-            SELECT p.id, p.name, p.country_code, p.position, p.photo, p.club,
+            SELECT p.id, p.name, p.country_code, c.flag as country_flag, p.position, p.photo, p.club,
                    SUM(pms.assists) as assists,
                    SUM(pms.goals) as goals,
                    COUNT(pms.id) as matches,
                    SUM(pms.minutes_played) as minutes
             FROM player_match_stats pms
             JOIN players p ON pms.player_id = p.id
+            LEFT JOIN countries c ON c.code = p.country_code
             WHERE pms.assists > 0
-            GROUP BY p.id
+            GROUP BY p.id, c.flag
             ORDER BY assists DESC, goals DESC
             LIMIT $1
         """, (limit,))
@@ -55,7 +57,7 @@ async def top_rated(limit: int = Query(20, ge=1, le=100)):
     db = await get_db()
     try:
         rows = await db.execute_fetchall("""
-            SELECT p.id, p.name, p.country_code, p.position, p.photo, p.club,
+            SELECT p.id, p.name, p.country_code, c.flag as country_flag, p.position, p.photo, p.club,
                    ROUND(AVG(pms.rating)::numeric, 2) as avg_rating,
                    COUNT(pms.id) as matches,
                    SUM(pms.goals) as goals,
@@ -63,8 +65,9 @@ async def top_rated(limit: int = Query(20, ge=1, le=100)):
                    SUM(pms.minutes_played) as minutes
             FROM player_match_stats pms
             JOIN players p ON pms.player_id = p.id
+            LEFT JOIN countries c ON c.code = p.country_code
             WHERE pms.minutes_played > 0
-            GROUP BY p.id
+            GROUP BY p.id, c.flag
             HAVING COUNT(pms.id) >= 1
             ORDER BY avg_rating DESC
             LIMIT $1
@@ -79,15 +82,16 @@ async def top_cards(limit: int = Query(20, ge=1, le=100)):
     db = await get_db()
     try:
         rows = await db.execute_fetchall("""
-            SELECT p.id, p.name, p.country_code, p.position, p.photo, p.club,
+            SELECT p.id, p.name, p.country_code, c.flag as country_flag, p.position, p.photo, p.club,
                    SUM(pms.yellow_cards) as yellows,
                    SUM(CASE WHEN pms.red_card THEN 1 ELSE 0 END) as reds,
                    COUNT(pms.id) as matches,
                    SUM(pms.minutes_played) as minutes
             FROM player_match_stats pms
             JOIN players p ON pms.player_id = p.id
+            LEFT JOIN countries c ON c.code = p.country_code
             WHERE pms.yellow_cards > 0 OR pms.red_card = TRUE
-            GROUP BY p.id
+            GROUP BY p.id, c.flag
             ORDER BY reds DESC, yellows DESC
             LIMIT $1
         """, (limit,))
@@ -101,7 +105,7 @@ async def top_keepers(limit: int = Query(20, ge=1, le=100)):
     db = await get_db()
     try:
         rows = await db.execute_fetchall("""
-            SELECT p.id, p.name, p.country_code, p.photo, p.club,
+            SELECT p.id, p.name, p.country_code, c.flag as country_flag, p.photo, p.club,
                    COUNT(pms.id) as matches,
                    SUM(pms.saves) as saves,
                    SUM(pms.goals_conceded) as goals_conceded,
@@ -110,8 +114,9 @@ async def top_keepers(limit: int = Query(20, ge=1, le=100)):
                    SUM(pms.minutes_played) as minutes
             FROM player_match_stats pms
             JOIN players p ON pms.player_id = p.id
+            LEFT JOIN countries c ON c.code = p.country_code
             WHERE p.position = 'GK' AND pms.minutes_played > 0
-            GROUP BY p.id
+            GROUP BY p.id, c.flag
             HAVING COUNT(pms.id) >= 1
             ORDER BY clean_sheets DESC, saves DESC
             LIMIT $1

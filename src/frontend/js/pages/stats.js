@@ -24,12 +24,14 @@ Router.register('/stats', async () => {
     function playerRow(p, mainStat, mainLabel, extraStats) {
       return `
         <div class="stat-row" style="cursor:pointer" onclick="location.hash='#/player/${p.id}'">
-          <img src="${p.photo || ''}" alt="" class="stat-photo" referrerpolicy="no-referrer" onerror="this.style.display='none'">
-          ${posBadge(p.position || 'GK')}
-          <div class="stat-player-info">
-            <span class="stat-player-name">${p.name}</span>
-            <span class="stat-player-meta">${p.country_code} · ${p.club || ''}</span>
+          <div class="stat-player-block">
+            <div class="stat-photo-row">
+              <img src="${p.photo || ''}" alt="" class="stat-photo" referrerpolicy="no-referrer" onerror="this.style.display='none'">
+              ${posBadge(p.position || 'GK')}
+            </div>
+            <span class="stat-player-name" title="${p.name}">${p.name}</span>
           </div>
+          <div class="stat-country-flag">${flagImg(p.country_flag, 28)}</div>
           <div class="stat-numbers">
             <span class="stat-main">${mainStat}</span>
             <span class="stat-label">${mainLabel}</span>
