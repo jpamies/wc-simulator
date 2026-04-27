@@ -354,7 +354,8 @@ tr:hover td { background: var(--bg-hover); }
 }
 
 /* ─── Stats page ─── */
-.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 1rem; }
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 1rem; max-width: 1400px; }
+@media (min-width: 900px) { .stats-grid { grid-template-columns: repeat(2, 1fr); } }
 .stat-row { display: flex; align-items: center; gap: 0.6rem; padding: 0.5rem 0.25rem; border-bottom: 1px solid var(--border); transition: background 0.15s; }
 .stat-row:hover { background: var(--bg-hover); border-radius: 6px; }
 .stat-player-block { display: flex; flex-direction: column; align-items: center; gap: 0.2rem; flex: 1; min-width: 0; max-width: 110px; }

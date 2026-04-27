@@ -4,11 +4,11 @@ Router.register('/stats', async () => {
 
   try {
     const [scorers, assists, rated, cards, keepers] = await Promise.all([
-      API.get('/stats/top-scorers?limit=15'),
-      API.get('/stats/top-assists?limit=15'),
-      API.get('/stats/top-rated?limit=15'),
-      API.get('/stats/top-cards?limit=15'),
-      API.get('/stats/top-keepers?limit=15'),
+      API.get('/stats/top-scorers?limit=10'),
+      API.get('/stats/top-assists?limit=10'),
+      API.get('/stats/top-rated?limit=10'),
+      API.get('/stats/top-cards?limit=10'),
+      API.get('/stats/top-keepers?limit=10'),
     ]);
 
     const hasData = scorers.length > 0;
