@@ -158,7 +158,7 @@ async function simMatchday(matchdayId) {
 
     showToast(`${matchdayId}: ${results.length} partidos simulados`, 'success');
     // Refresh buttons after short delay so log stays visible
-    setTimeout(() => location.hash = '#/simulate', 1500);
+    setTimeout(() => { location.hash = '#/simulate'; Router.handleRoute(); }, 1500);
   } catch (e) {
     logSim(`❌ Error: ${e.message}`);
     showToast(e.message, 'error');
@@ -209,7 +209,7 @@ async function simKnockout(phase) {
       logSim(`<span class="log-score">→ Siguiente ronda: ${result.next_round.length} partidos generados</span>`);
     }
     showToast(`Ronda ${phase} simulada`, 'success');
-    setTimeout(() => location.hash = '#/simulate', 1500);
+    setTimeout(() => { location.hash = '#/simulate'; Router.handleRoute(); }, 1500);
   } catch (e) {
     logSim(`❌ Error: ${e.message}`);
     showToast(e.message, 'error');
@@ -225,7 +225,7 @@ async function simFullTournament() {
       logSim(`<span class="log-match">${key}: ${val}</span>`);
     }
     showToast('¡Torneo simulado completo!', 'success');
-    setTimeout(() => location.hash = '#/simulate', 2000);
+    setTimeout(() => { location.hash = '#/simulate'; Router.handleRoute(); }, 2000);
   } catch (e) {
     logSim(`❌ Error: ${e.message}`);
     showToast(e.message, 'error');
@@ -239,7 +239,7 @@ async function resetSim() {
     await API.post('/simulate/reset');
     logSim('<span class="log-score">✅ Simulaciones eliminadas</span>');
     showToast('Simulaciones reseteadas', 'success');
-    setTimeout(() => location.hash = '#/simulate', 1000);
+    setTimeout(() => { location.hash = '#/simulate'; Router.handleRoute(); }, 1000);
   } catch (e) {
     logSim(`❌ Error: ${e.message}`);
     showToast(e.message, 'error');
