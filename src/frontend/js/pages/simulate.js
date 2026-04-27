@@ -61,23 +61,57 @@ Router.register('/simulate', async () => {
         </div>
       </div>
 
-      <div id="sim-progress" style="display:none;" class="card">
-        <div class="card-title">Progreso</div>
+      <div id="sim-progress" class="card">
+        <div class="card-title" style="display:flex;justify-content:space-between;align-items:center">
+          <span>🖥️ Consola de simulación</span>
+          <button class="btn btn-sm" onclick="clearSimLog()" style="opacity:.7">🗑️ Limpiar</button>
+        </div>
         <div class="sim-log" id="sim-log"></div>
       </div>
 
       <div id="sim-results"></div>
     `;
+
+    // Replay persisted log
+    renderSimLog();
   } catch (e) {
     app.innerHTML = `<div class="card"><p>Error: ${e.message}</p></div>`;
   }
 });
 
-function logSim(msg) {
+function _getSimLog() {
+  try { return JSON.parse(sessionStorage.getItem('simLog') || '[]'); } catch { return []; }
+}
+function _setSimLog(arr) {
+  // Keep last 200 entries
+  const trimmed = arr.slice(-200);
+  sessionStorage.setItem('simLog', JSON.stringify(trimmed));
+}
+function renderSimLog() {
   const logEl = document.getElementById('sim-log');
-  const progress = document.getElementById('sim-progress');
-  if (progress) progress.style.display = 'block';
-  if (logEl) logEl.innerHTML += `<div class="log-entry">${msg}</div>`;
+  if (!logEl) return;
+  const entries = _getSimLog();
+  logEl.innerHTML = entries.map(e => `<div class="log-entry">${e}</div>`).join('');
+  logEl.scrollTop = logEl.scrollHeight;
+}
+function clearSimLog() {
+  sessionStorage.removeItem('simLog');
+  renderSimLog();
+}
+
+function logSim(msg) {
+  const ts = new Date().toLocaleTimeString();
+  const entries = _getSimLog();
+  entries.push(`<span style="color:var(--text-muted);margin-right:.5rem">[${ts}]</span>${msg}`);
+  _setSimLog(entries);
+  const logEl = document.getElementById('sim-log');
+  if (logEl) {
+    const div = document.createElement('div');
+    div.className = 'log-entry';
+    div.innerHTML = entries[entries.length - 1];
+    logEl.appendChild(div);
+    logEl.scrollTop = logEl.scrollHeight;
+  }
 }
 
 async function simNextMatch() {
