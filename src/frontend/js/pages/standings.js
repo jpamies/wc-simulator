@@ -3,10 +3,19 @@ Router.register('/standings', async () => {
   app.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
 
   try {
-    const standings = await API.get('/tournament/standings');
+    const [standings, bestThirds] = await Promise.all([
+      API.get('/tournament/standings'),
+      API.get('/tournament/best-thirds').catch(() => []),
+    ]);
+    const bestThirdSet = new Set(bestThirds);
 
     app.innerHTML = `
       <h1 class="section-title">📊 Clasificación — Fase de Grupos</h1>
+      <div class="standings-legend">
+        <span class="legend-item"><span class="legend-dot legend-dot-qualified"></span> Clasificado (1º/2º)</span>
+        <span class="legend-item"><span class="legend-dot legend-dot-third"></span> Mejor 3º (clasificado)</span>
+        <span class="legend-item"><span class="legend-dot legend-dot-eliminated"></span> Eliminado</span>
+      </div>
       <div class="groups-grid">
         ${Object.entries(standings).sort().map(([letter, teams]) => `
           <div class="card group-card">
@@ -27,8 +36,12 @@ Router.register('/standings', async () => {
                 </tr>
               </thead>
               <tbody>
-                ${teams.map((t, i) => `
-                  <tr class="${i < 2 ? 'qualified' : ''}">
+                ${teams.map((t, i) => {
+                  let rowClass = '';
+                  if (i < 2) rowClass = 'qualified';
+                  else if (i === 2 && bestThirdSet.has(t.country_code)) rowClass = 'qualified-third';
+                  return `
+                  <tr class="${rowClass}">
                     <td>${flagImg(t.flag, 20)}</td>
                     <td>
                       <a href="#/team/${t.country_code}" style="color:inherit;text-decoration:none;">
@@ -44,7 +57,7 @@ Router.register('/standings', async () => {
                     <td>${t.goal_difference}</td>
                     <td><strong>${t.points}</strong></td>
                   </tr>
-                `).join('')}
+                `}).join('')}
               </tbody>
             </table>
           </div>

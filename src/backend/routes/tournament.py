@@ -7,6 +7,7 @@ from src.backend.models import (
 )
 from src.backend.services.tournament_engine import (
     get_group_standings, recalculate_group_standings,
+    get_best_third_place_teams,
 )
 
 router = APIRouter(prefix="/tournament", tags=["tournament"])
@@ -100,6 +101,13 @@ async def standings():
             for t in teams
         ]
     return result
+
+
+@router.get("/best-thirds")
+async def best_thirds():
+    """Return the 8 best 3rd-place country codes that would qualify for R32."""
+    codes = await get_best_third_place_teams()
+    return codes
 
 
 @router.get("/progress")

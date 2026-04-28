@@ -41,22 +41,24 @@ Router.register('/bracket', async () => {
         </div>`;
     }
 
-    // Left bracket: R32(8) → R16(4) → QF(2) → SF(1) → Final(1) ← SF(1) ← QF(2) ← R16(4) ← R32(8)
-    // The bracket pairs feed based on FIFA bracket:
-    // Left side feeds M89(W74,W77), M90(W73,W75), M91(W76,W78), M92(W79,W80) etc.
-    // We reorder R32 to match the bracket flow:
-    // M90 = W73 vs W75  →  so R32 pair 1: M73, then M75 (skipping — but for visual bracket,
-    //   we pair R32 matches that feed into the same R16 match)
+    // Bracket sides grouped by semifinal feed:
+    // LEFT → SF M101 = W(M97) vs W(M98)
+    //   M97 = W(M89) vs W(M90)  |  M98 = W(M93) vs W(M94)
+    // RIGHT → SF M102 = W(M99) vs W(M100)
+    //   M99 = W(M91) vs W(M92)  |  M100 = W(M95) vs W(M96)
     const leftPairs = [
-      // R32 pairs that feed R16
+      // Feed QF M97
       { r32: ['M74','M77'], r16: 'M89' },
       { r32: ['M73','M75'], r16: 'M90' },
-      { r32: ['M76','M78'], r16: 'M91' },
-      { r32: ['M79','M80'], r16: 'M92' },
-    ];
-    const rightPairs = [
+      // Feed QF M98
       { r32: ['M83','M84'], r16: 'M93' },
       { r32: ['M81','M82'], r16: 'M94' },
+    ];
+    const rightPairs = [
+      // Feed QF M99
+      { r32: ['M76','M78'], r16: 'M91' },
+      { r32: ['M79','M80'], r16: 'M92' },
+      // Feed QF M100
       { r32: ['M86','M88'], r16: 'M95' },
       { r32: ['M85','M87'], r16: 'M96' },
     ];
@@ -94,13 +96,13 @@ Router.register('/bracket', async () => {
           <span>SF</span><span>QF</span><span>R16</span><span>R32</span>
         </div>
         <div class="bk-grid">
-          ${renderHalf(leftPairs, ['M97','M99'], 'M101', 'left')}
+          ${renderHalf(leftPairs, ['M97','M98'], 'M101', 'left')}
           <div class="bk-col bk-final">
             ${matchBox(byId['M104'])}
             <div class="bk-third-label">3er puesto</div>
             ${matchBox(byId['M103'])}
           </div>
-          ${renderHalf(rightPairs, ['M98','M100'], 'M102', 'right')}
+          ${renderHalf(rightPairs, ['M99','M100'], 'M102', 'right')}
         </div>
       </div>
     `;
