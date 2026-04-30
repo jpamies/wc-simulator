@@ -258,13 +258,20 @@ async def init_db():
         has_tournaments = await conn.fetchval(
             "SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_name = 'tournaments')"
         )
+        # Check if migration is complete (tournament_id column exists on group_standings)
+        migration_complete = False
+        if has_tournaments:
+            migration_complete = await conn.fetchval(
+                "SELECT EXISTS(SELECT 1 FROM information_schema.columns "
+                "WHERE table_name='group_standings' AND column_name='tournament_id')"
+            )
 
         if not has_countries:
             # Fresh install: create full schema
             await conn.execute(SCHEMA)
             print("[DB] PostgreSQL schema created")
-        elif not has_tournaments:
-            # Migration: old schema exists, add tournaments support
+        elif not has_tournaments or not migration_complete:
+            # Migration: old schema exists or partially migrated
             await _migrate_to_tournaments(conn)
             print("[DB] Migrated to multi-tournament schema")
         else:
