@@ -1,15 +1,14 @@
 """Squad selection routes — select 26-player squads per country."""
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from src.backend.database import get_db
 from src.backend.models import PlayerOut
-from src.backend.tournament_auth import CANONICAL_ID, require_tournament_write
 
 router = APIRouter(prefix="/squads", tags=["squads"])
 
 
-async def _update_squad_stats(db, country_code: str, tournament_id: int):
+async def _update_squad_stats(db, country_code: str):
     """Recompute and store squad stats for a country after selection changes."""
     rows = await db.execute_fetchall("""
         SELECT COUNT(*) as squad_size,
@@ -21,17 +20,17 @@ async def _update_squad_stats(db, country_code: str, tournament_id: int):
                COALESCE(SUM(p.market_value), 0) as total_value
         FROM squad_selections s
         JOIN players p ON s.player_id = p.id
-        WHERE s.country_code = $1 AND s.tournament_id = $2
-    """, (country_code, tournament_id))
+        WHERE s.country_code = $1
+    """, (country_code,))
     r = rows[0]
     await db.execute("""
-        INSERT INTO squad_stats (country_code, tournament_id, squad_size, gk, defs, mids, fwds, avg_strength, total_value)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-        ON CONFLICT (country_code, tournament_id) DO UPDATE SET
+        INSERT INTO squad_stats (country_code, squad_size, gk, defs, mids, fwds, avg_strength, total_value)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        ON CONFLICT (country_code) DO UPDATE SET
             squad_size = EXCLUDED.squad_size, gk = EXCLUDED.gk, defs = EXCLUDED.defs,
             mids = EXCLUDED.mids, fwds = EXCLUDED.fwds,
             avg_strength = EXCLUDED.avg_strength, total_value = EXCLUDED.total_value
-    """, (country_code, tournament_id, r["squad_size"], r["gk"], r["defs"], r["mids"], r["fwds"],
+    """, (country_code, r["squad_size"], r["gk"], r["defs"], r["mids"], r["fwds"],
           r["avg_strength"], r["total_value"]))
 
 
@@ -54,7 +53,7 @@ class SquadOverview(BaseModel):
 
 
 @router.get("", response_model=list[SquadOverview])
-async def list_squads(tournament_id: int = Query(CANONICAL_ID)):
+async def list_squads():
     """List all countries with their squad selection status (pre-computed)."""
     db = await get_db()
     try:
@@ -69,9 +68,9 @@ async def list_squads(tournament_id: int = Query(CANONICAL_ID)):
                    COALESCE(ss.avg_strength, 0) as avg_strength,
                    COALESCE(ss.total_value, 0) as total_value
             FROM countries c
-            LEFT JOIN squad_stats ss ON ss.country_code = c.code AND ss.tournament_id = $1
+            LEFT JOIN squad_stats ss ON ss.country_code = c.code
             ORDER BY c.name
-        """, (tournament_id,))
+        """)
         return [SquadOverview(
             country_code=r["code"], country_name=r["name"], flag=r["flag"],
             total_players=r["total_players"], squad_size=r["squad_size"],
@@ -83,46 +82,44 @@ async def list_squads(tournament_id: int = Query(CANONICAL_ID)):
 
 
 @router.get("/all-players", response_model=list[PlayerOut])
-async def get_all_squad_players(tournament_id: int = Query(CANONICAL_ID)):
+async def get_all_squad_players():
     """Get all squad-selected players across all 48 countries in one call."""
     db = await get_db()
     try:
         rows = await db.execute_fetchall("""
             SELECT p.* FROM players p
-            WHERE p.id IN (SELECT player_id FROM squad_selections WHERE tournament_id = $1)
+            WHERE p.id IN (SELECT player_id FROM squad_selections)
             ORDER BY p.country_code, 
                 CASE p.position WHEN 'GK' THEN 1 WHEN 'DEF' THEN 2
                      WHEN 'MID' THEN 3 WHEN 'FWD' THEN 4 END,
                 p.strength DESC
-        """, (tournament_id,))
+        """)
         return [PlayerOut(**dict(r)) for r in rows]
     finally:
         await db.close()
 
 
 @router.get("/{country_code}", response_model=list[PlayerOut])
-async def get_squad(country_code: str, tournament_id: int = Query(CANONICAL_ID)):
+async def get_squad(country_code: str):
     """Get the selected squad for a country."""
     db = await get_db()
     try:
         rows = await db.execute_fetchall("""
             SELECT p.* FROM players p
             JOIN squad_selections s ON s.player_id = p.id
-            WHERE s.country_code = $1 AND s.tournament_id = $2
+            WHERE s.country_code = $1
             ORDER BY
                 CASE p.position WHEN 'GK' THEN 1 WHEN 'DEF' THEN 2
                      WHEN 'MID' THEN 3 WHEN 'FWD' THEN 4 END,
                 p.strength DESC
-        """, (country_code, tournament_id))
+        """, (country_code,))
         return [PlayerOut(**dict(r)) for r in rows]
     finally:
         await db.close()
 
 
 @router.put("/{country_code}")
-async def save_squad(country_code: str, data: SquadIn, request: Request, tournament_id: int = Query(CANONICAL_ID)):
-    """Save/replace the squad for a country. Max 26 players, max 3 GK."""
-    await require_tournament_write(request, tournament_id)
+async def save_squad(country_code: str, data: SquadIn):
     """Save/replace the squad for a country. Max 26 players, max 3 GK."""
     if len(data.player_ids) > 26:
         raise HTTPException(400, "Maximum 26 players per squad")
@@ -155,16 +152,15 @@ async def save_squad(country_code: str, data: SquadIn, request: Request, tournam
 
         # Replace squad
         await db.execute(
-            "DELETE FROM squad_selections WHERE country_code = $1 AND tournament_id = $2",
-            (country_code, tournament_id)
+            "DELETE FROM squad_selections WHERE country_code = $1", (country_code,)
         )
         for pid in data.player_ids:
             await db.execute(
-                "INSERT INTO squad_selections (country_code, player_id, tournament_id) VALUES ($1, $2, $3)",
-                (country_code, pid, tournament_id),
+                "INSERT INTO squad_selections (country_code, player_id) VALUES ($1, $2)",
+                (country_code, pid),
             )
         
-        await _update_squad_stats(db, country_code, tournament_id)
+        await _update_squad_stats(db, country_code)
         await db.commit()
 
         return {"status": "ok", "country_code": country_code, "squad_size": len(data.player_ids)}
@@ -173,13 +169,8 @@ async def save_squad(country_code: str, data: SquadIn, request: Request, tournam
 
 
 @router.post("/{country_code}/auto")
-async def auto_select_squad(
-    country_code: str,
-    request: Request,
-    tournament_id: int = Query(CANONICAL_ID),
-):
+async def auto_select_squad(country_code: str):
     """Auto-select the best 26 players: 3 GK, 8 DEF, 8 MID, 7 FWD."""
-    await require_tournament_write(request, tournament_id)
     db = await get_db()
     try:
         row = await db.execute_fetchall(
@@ -200,16 +191,15 @@ async def auto_select_squad(
 
         # Replace squad
         await db.execute(
-            "DELETE FROM squad_selections WHERE country_code = $1 AND tournament_id = $2",
-            (country_code, tournament_id)
+            "DELETE FROM squad_selections WHERE country_code = $1", (country_code,)
         )
         for pid in selected:
             await db.execute(
-                "INSERT INTO squad_selections (country_code, player_id, tournament_id) VALUES ($1, $2, $3)",
-                (country_code, pid, tournament_id),
+                "INSERT INTO squad_selections (country_code, player_id) VALUES ($1, $2)",
+                (country_code, pid),
             )
         
-        await _update_squad_stats(db, country_code, tournament_id)
+        await _update_squad_stats(db, country_code)
         await db.commit()
 
         return {"status": "ok", "country_code": country_code, "squad_size": len(selected)}
@@ -218,9 +208,8 @@ async def auto_select_squad(
 
 
 @router.post("/auto-all")
-async def auto_select_all_squads(request: Request, tournament_id: int = Query(CANONICAL_ID)):
+async def auto_select_all_squads():
     """Auto-select squads for all 48 countries."""
-    await require_tournament_write(request, tournament_id)
     db = await get_db()
     try:
         countries = await db.execute_fetchall("SELECT code FROM countries")
@@ -229,7 +218,7 @@ async def auto_select_all_squads(request: Request, tournament_id: int = Query(CA
 
     results = {}
     for c in countries:
-        r = await auto_select_squad(c["code"], request, tournament_id)
+        r = await auto_select_squad(c["code"])
         results[c["code"]] = r["squad_size"]
 
     return {"status": "ok", "squads": results}

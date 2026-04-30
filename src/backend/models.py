@@ -133,34 +133,6 @@ class SimulateMatchesIn(BaseModel):
     matchday_id: Optional[str] = None
 
 
-# ─── Tournaments ───
-
-class TournamentCreate(BaseModel):
-    name: str
-    owner_name: str = ""
-    visibility: str = "public"
-    fork_from_slug: Optional[str] = None
-
-
-class TournamentOut(BaseModel):
-    id: int
-    slug: str
-    name: str
-    owner_name: str = ""
-    is_canonical: bool = False
-    visibility: str = "public"
-    forked_from: Optional[int] = None
-    status: str = "active"
-    created_at: Optional[str] = None
-    current_phase: Optional[str] = None
-    matches_played: int = 0
-    total_matches: int = 0
-
-
-class TournamentCreatedOut(TournamentOut):
-    manage_token: str
-
-
 # ─── Tournament overview ───
 
 class TournamentOverview(BaseModel):

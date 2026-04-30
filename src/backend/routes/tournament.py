@@ -1,6 +1,6 @@
 """Tournament routes — tournament overview, calendar, standings."""
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter
 from src.backend.database import get_db
 from src.backend.models import (
     TournamentOverview, MatchdayOut, MatchOut, GroupStandingOut,
@@ -9,23 +9,19 @@ from src.backend.services.tournament_engine import (
     get_group_standings, recalculate_group_standings,
     get_best_third_place_teams,
 )
-from src.backend.tournament_auth import CANONICAL_ID
 
 router = APIRouter(prefix="/tournament", tags=["tournament"])
 
 
 @router.get("/overview", response_model=TournamentOverview)
-async def overview(tournament_id: int = Query(CANONICAL_ID)):
+async def overview():
     db = await get_db()
     try:
         countries = await db.execute_fetchall("SELECT COUNT(*) as c FROM countries")
         players = await db.execute_fetchall("SELECT COUNT(*) as c FROM players")
-        total = await db.execute_fetchall(
-            "SELECT COUNT(*) as c FROM matches WHERE tournament_id = $1", (tournament_id,)
-        )
+        total = await db.execute_fetchall("SELECT COUNT(*) as c FROM matches")
         played = await db.execute_fetchall(
-            "SELECT COUNT(*) as c FROM matches WHERE tournament_id = $1 AND status = 'finished'",
-            (tournament_id,)
+            "SELECT COUNT(*) as c FROM matches WHERE status = 'finished'"
         )
         groups_raw = await db.execute_fetchall(
             "SELECT code, group_letter FROM countries WHERE group_letter IS NOT NULL ORDER BY group_letter, code"
@@ -38,10 +34,10 @@ async def overview(tournament_id: int = Query(CANONICAL_ID)):
         # Determine current phase
         phase_row = await db.execute_fetchall("""
             SELECT md.phase FROM matchdays md
-            JOIN matches m ON m.matchday_id = md.id AND m.tournament_id = md.tournament_id
-            WHERE md.tournament_id = $1 AND m.status != 'finished'
+            JOIN matches m ON m.matchday_id = md.id
+            WHERE m.status != 'finished'
             ORDER BY md.date ASC LIMIT 1
-        """, (tournament_id,))
+        """)
         current_phase = phase_row[0]["phase"] if phase_row else "completed"
 
         return TournamentOverview(
@@ -60,12 +56,11 @@ async def overview(tournament_id: int = Query(CANONICAL_ID)):
 
 
 @router.get("/calendar", response_model=list[MatchdayOut])
-async def calendar(tournament_id: int = Query(CANONICAL_ID)):
+async def calendar():
     db = await get_db()
     try:
         matchdays = await db.execute_fetchall(
-            "SELECT * FROM matchdays WHERE tournament_id = $1 ORDER BY date ASC",
-            (tournament_id,)
+            "SELECT * FROM matchdays ORDER BY date ASC"
         )
         result = []
         for md in matchdays:
@@ -74,9 +69,9 @@ async def calendar(tournament_id: int = Query(CANONICAL_ID)):
                 FROM matches m
                 LEFT JOIN countries h ON m.home_code = h.code
                 LEFT JOIN countries a ON m.away_code = a.code
-                WHERE m.matchday_id = $1 AND m.tournament_id = $2
+                WHERE m.matchday_id = $1
                 ORDER BY m.kickoff ASC
-            """, (md["id"], tournament_id))
+            """, (md["id"],))
             result.append(MatchdayOut(
                 id=md["id"], name=md["name"], phase=md["phase"],
                 date=md["date"], status=md["status"],
@@ -88,8 +83,8 @@ async def calendar(tournament_id: int = Query(CANONICAL_ID)):
 
 
 @router.get("/standings", response_model=dict[str, list[GroupStandingOut]])
-async def standings(tournament_id: int = Query(CANONICAL_ID)):
-    raw = await get_group_standings(tournament_id)
+async def standings():
+    raw = await get_group_standings()
     result: dict[str, list[GroupStandingOut]] = {}
     for group, teams in raw.items():
         result[group] = [
@@ -109,14 +104,14 @@ async def standings(tournament_id: int = Query(CANONICAL_ID)):
 
 
 @router.get("/best-thirds")
-async def best_thirds(tournament_id: int = Query(CANONICAL_ID)):
+async def best_thirds():
     """Return the 8 best 3rd-place country codes that would qualify for R32."""
-    codes = await get_best_third_place_teams(tournament_id)
+    codes = await get_best_third_place_teams()
     return codes
 
 
 @router.get("/progress")
-async def tournament_progress(tournament_id: int = Query(CANONICAL_ID)):
+async def tournament_progress():
     """Return per-matchday/phase completion status for the simulate UI."""
     db = await get_db()
     try:
@@ -126,11 +121,10 @@ async def tournament_progress(tournament_id: int = Query(CANONICAL_ID)):
                    SUM(CASE WHEN m.status = 'finished' THEN 1 ELSE 0 END) as finished,
                    SUM(CASE WHEN m.home_code IS NOT NULL AND m.away_code IS NOT NULL THEN 1 ELSE 0 END) as resolved
             FROM matchdays md
-            JOIN matches m ON m.matchday_id = md.id AND m.tournament_id = md.tournament_id
-            WHERE md.tournament_id = $1
+            JOIN matches m ON m.matchday_id = md.id
             GROUP BY md.id, md.phase
             ORDER BY md.date ASC
-        """, (tournament_id,))
+        """)
         matchdays = {}
         for r in rows:
             matchdays[r["matchday_id"]] = {
