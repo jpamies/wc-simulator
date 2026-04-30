@@ -142,7 +142,7 @@ async def _import_countries_from_groups():
 
 
 async def _import_calendar():
-    """Import matchdays and matches from calendar.json."""
+    """Import matchdays and matches from calendar.json into canonical tournament."""
     filepath = os.path.join(TOURNAMENT_DATA_DIR, "calendar.json")
     if not os.path.exists(filepath):
         return
@@ -154,8 +154,8 @@ async def _import_calendar():
     try:
         for md in data:
             await db.execute(
-                """INSERT INTO matchdays (id, name, phase, date, status)
-                   VALUES ($1, $2, $3, $4, 'scheduled')
+                """INSERT INTO matchdays (id, tournament_id, name, phase, date, status)
+                   VALUES ($1, 1, $2, $3, $4, 'scheduled')
                    ON CONFLICT DO NOTHING""",
                 (md["id"], md["name"], md["phase"], md["date"]),
             )
@@ -168,10 +168,10 @@ async def _import_calendar():
 
                 await db.execute(
                     """INSERT INTO matches
-                       (id, matchday_id, match_number, home_team, away_team,
+                       (id, tournament_id, matchday_id, match_number, home_team, away_team,
                         home_code, away_code, kickoff, location, group_name,
                         status, is_simulated)
-                       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'scheduled', FALSE)
+                       VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'scheduled', FALSE)
                        ON CONFLICT DO NOTHING""",
                     (m["id"], md["id"], m.get("match_number"),
                      home_name, away_name, home_code, away_code,

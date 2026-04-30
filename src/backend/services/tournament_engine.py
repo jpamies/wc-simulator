@@ -14,6 +14,9 @@ Bracket is deterministic (FIFA rules):
 
 from src.backend.database import get_db
 
+# Default tournament ID (canonical)
+CANONICAL_ID = 1
+
 
 # ---------------------------------------------------------------------------
 # FIFA bracket definitions
@@ -72,11 +75,11 @@ THIRD_PLACE_SLOTS = {
 }
 
 
-async def recalculate_group_standings():
+async def recalculate_group_standings(tournament_id: int = CANONICAL_ID):
     """Recalculate all group standings from finished group-stage matches."""
     db = await get_db()
     try:
-        await db.execute("DELETE FROM group_standings")
+        await db.execute("DELETE FROM group_standings WHERE tournament_id = $1", (tournament_id,))
 
         rows = await db.execute_fetchall(
             "SELECT code, group_letter FROM countries WHERE group_letter IS NOT NULL"
@@ -84,19 +87,20 @@ async def recalculate_group_standings():
         for row in rows:
             code, group = row["code"], row["group_letter"]
             await db.execute(
-                """INSERT INTO group_standings (country_code, group_letter,
+                """INSERT INTO group_standings (country_code, group_letter, tournament_id,
                    played, won, drawn, lost, goals_for, goals_against, points)
-                   VALUES ($1, $2, 0, 0, 0, 0, 0, 0, 0)""",
-                (code, group),
+                   VALUES ($1, $2, $3, 0, 0, 0, 0, 0, 0, 0)""",
+                (code, group, tournament_id),
             )
 
         matches = await db.execute_fetchall("""
             SELECT m.home_code, m.away_code, m.score_home, m.score_away
             FROM matches m
-            JOIN matchdays md ON m.matchday_id = md.id
+            JOIN matchdays md ON m.matchday_id = md.id AND m.tournament_id = md.tournament_id
             WHERE m.status = 'finished' AND md.phase = 'groups'
               AND m.home_code IS NOT NULL AND m.away_code IS NOT NULL
-        """)
+              AND m.tournament_id = $1
+        """, (tournament_id,))
 
         for m in matches:
             h, a = m["home_code"], m["away_code"]
@@ -114,23 +118,23 @@ async def recalculate_group_standings():
                     played = played + 1, won = won + $1, drawn = drawn + $2,
                     lost = lost + $3, goals_for = goals_for + $4,
                     goals_against = goals_against + $5, points = points + $6
-                WHERE country_code = $7
-            """, (hw, hd, hl, sh, sa, hp, h))
+                WHERE country_code = $7 AND tournament_id = $8
+            """, (hw, hd, hl, sh, sa, hp, h, tournament_id))
 
             await db.execute("""
                 UPDATE group_standings SET
                     played = played + 1, won = won + $1, drawn = drawn + $2,
                     lost = lost + $3, goals_for = goals_for + $4,
                     goals_against = goals_against + $5, points = points + $6
-                WHERE country_code = $7
-            """, (aw, ad, al, sa, sh, ap, a))
+                WHERE country_code = $7 AND tournament_id = $8
+            """, (aw, ad, al, sa, sh, ap, a, tournament_id))
 
         await db.commit()
     finally:
         await db.close()
 
 
-async def get_group_standings() -> dict[str, list[dict]]:
+async def get_group_standings(tournament_id: int = CANONICAL_ID) -> dict[str, list[dict]]:
     """Get standings for all groups, sorted by points/GD/GF."""
     db = await get_db()
     try:
@@ -138,12 +142,13 @@ async def get_group_standings() -> dict[str, list[dict]]:
             SELECT gs.*, c.name as country_name, c.flag
             FROM group_standings gs
             JOIN countries c ON gs.country_code = c.code
+            WHERE gs.tournament_id = $1
             ORDER BY gs.group_letter,
                      gs.points DESC,
                      (gs.goals_for - gs.goals_against) DESC,
                      gs.goals_for DESC,
                      c.name ASC
-        """)
+        """, (tournament_id,))
         groups: dict[str, list[dict]] = {}
         for r in rows:
             g = r["group_letter"]
@@ -153,12 +158,12 @@ async def get_group_standings() -> dict[str, list[dict]]:
         await db.close()
 
 
-async def get_best_third_place_teams() -> list[str]:
+async def get_best_third_place_teams(tournament_id: int = CANONICAL_ID) -> list[str]:
     """
     Get the 8 best 3rd-place teams across all 12 groups.
     Sorted by points, then GD, then GF.
     """
-    standings = await get_group_standings()
+    standings = await get_group_standings(tournament_id)
     thirds = []
     for group, teams in standings.items():
         if len(teams) >= 3:
@@ -189,17 +194,13 @@ def _get_winner(match: dict) -> str | None:
     return None
 
 
-async def resolve_r32_bracket():
+async def resolve_r32_bracket(tournament_id: int = CANONICAL_ID):
     """
     Resolve the Round of 32 bracket by filling in the actual teams
     based on group standings.
-
-    R32 matches already exist from the calendar with placeholder names
-    like "1A", "2B", "3ABCDF". This function resolves those to actual
-    country codes using group standings + FIFA 3rd-place assignment rules.
     """
-    standings = await get_group_standings()
-    best_thirds = await get_best_third_place_teams()
+    standings = await get_group_standings(tournament_id)
+    best_thirds = await get_best_third_place_teams(tournament_id)
 
     def get_nth(group: str, pos: int) -> str | None:
         teams = standings.get(group, [])
@@ -229,9 +230,9 @@ async def resolve_r32_bracket():
     try:
         r32_matches = await db.execute_fetchall("""
             SELECT m.id, m.home_team, m.away_team
-            FROM matches m WHERE m.matchday_id = 'R32'
+            FROM matches m WHERE m.matchday_id = 'R32' AND m.tournament_id = $1
             ORDER BY m.match_number ASC
-        """)
+        """, (tournament_id,))
 
         resolved = []
         for m in r32_matches:
@@ -267,8 +268,8 @@ async def resolve_r32_bracket():
                 await db.execute("""
                     UPDATE matches SET home_code = $1, away_code = $2,
                         home_team = $3, away_team = $4
-                    WHERE id = $5
-                """, (home_code, away_code, home_name, away_name, m["id"]))
+                    WHERE id = $5 AND tournament_id = $6
+                """, (home_code, away_code, home_name, away_name, m["id"], tournament_id))
                 resolved.append({
                     "id": m["id"], "home": home_code, "away": away_code,
                     "home_name": home_name, "away_name": away_name,
@@ -324,7 +325,7 @@ def _assign_third_place_teams(
     return assignment
 
 
-async def resolve_knockout_round(current_phase: str):
+async def resolve_knockout_round(current_phase: str, tournament_id: int = CANONICAL_ID):
     """
     Fill in the next knockout round's teams based on the FIFA bracket.
 
@@ -344,7 +345,7 @@ async def resolve_knockout_round(current_phase: str):
         use_winners = True
     elif current_phase == "semi":
         # Semi produces both 3rd place match (losers) and final (winners)
-        return await _resolve_semi_to_final()
+        return await _resolve_semi_to_final(tournament_id)
     else:
         return []
 
@@ -354,10 +355,10 @@ async def resolve_knockout_round(current_phase: str):
         for next_match_id, (source_a_id, source_b_id) in bracket.items():
             # Get source matches
             source_a = await db.execute_fetchall(
-                "SELECT * FROM matches WHERE id = $1", (source_a_id,)
+                "SELECT * FROM matches WHERE id = $1 AND tournament_id = $2", (source_a_id, tournament_id)
             )
             source_b = await db.execute_fetchall(
-                "SELECT * FROM matches WHERE id = $1", (source_b_id,)
+                "SELECT * FROM matches WHERE id = $1 AND tournament_id = $2", (source_b_id, tournament_id)
             )
             if not source_a or not source_b:
                 continue
@@ -380,8 +381,8 @@ async def resolve_knockout_round(current_phase: str):
             await db.execute("""
                 UPDATE matches SET home_code = $1, away_code = $2,
                     home_team = $3, away_team = $4
-                WHERE id = $5
-            """, (home_code, away_code, home_name, away_name, next_match_id))
+                WHERE id = $5 AND tournament_id = $6
+            """, (home_code, away_code, home_name, away_name, next_match_id, tournament_id))
             resolved.append({
                 "id": next_match_id, "home": home_code, "away": away_code,
                 "home_name": home_name, "away_name": away_name,
@@ -393,7 +394,7 @@ async def resolve_knockout_round(current_phase: str):
         await db.close()
 
 
-async def _resolve_semi_to_final():
+async def _resolve_semi_to_final(tournament_id: int = CANONICAL_ID):
     """
     After semis: losers → 3rd place match (M103), winners → final (M104).
     """
@@ -403,8 +404,8 @@ async def _resolve_semi_to_final():
 
         # 3rd place match: losers of M101 and M102
         for next_match_id, (src_a_id, src_b_id) in THIRD_PLACE.items():
-            src_a = await db.execute_fetchall("SELECT * FROM matches WHERE id = $1", (src_a_id,))
-            src_b = await db.execute_fetchall("SELECT * FROM matches WHERE id = $1", (src_b_id,))
+            src_a = await db.execute_fetchall("SELECT * FROM matches WHERE id = $1 AND tournament_id = $2", (src_a_id, tournament_id))
+            src_b = await db.execute_fetchall("SELECT * FROM matches WHERE id = $1 AND tournament_id = $2", (src_b_id, tournament_id))
             if not src_a or not src_b:
                 continue
             a, b = dict(src_a[0]), dict(src_b[0])
@@ -421,15 +422,15 @@ async def _resolve_semi_to_final():
             away_name = away_row[0]["name"] if away_row else away_code
 
             await db.execute("""
-                UPDATE matches SET home_code = $1, away_code = $2, home_team = $3, away_team = $4 WHERE id = $5
-            """, (home_code, away_code, home_name, away_name, next_match_id))
+                UPDATE matches SET home_code = $1, away_code = $2, home_team = $3, away_team = $4 WHERE id = $5 AND tournament_id = $6
+            """, (home_code, away_code, home_name, away_name, next_match_id, tournament_id))
             resolved.append({"id": next_match_id, "home": home_code, "away": away_code,
                              "home_name": home_name, "away_name": away_name})
 
         # Final: winners of M101 and M102
         for next_match_id, (src_a_id, src_b_id) in FINAL_BRACKET.items():
-            src_a = await db.execute_fetchall("SELECT * FROM matches WHERE id = $1", (src_a_id,))
-            src_b = await db.execute_fetchall("SELECT * FROM matches WHERE id = $1", (src_b_id,))
+            src_a = await db.execute_fetchall("SELECT * FROM matches WHERE id = $1 AND tournament_id = $2", (src_a_id, tournament_id))
+            src_b = await db.execute_fetchall("SELECT * FROM matches WHERE id = $1 AND tournament_id = $2", (src_b_id, tournament_id))
             if not src_a or not src_b:
                 continue
             wa = _get_winner(dict(src_a[0]))
@@ -443,8 +444,8 @@ async def _resolve_semi_to_final():
             away_name = away_row[0]["name"] if away_row else wb
 
             await db.execute("""
-                UPDATE matches SET home_code = $1, away_code = $2, home_team = $3, away_team = $4 WHERE id = $5
-            """, (wa, wb, home_name, away_name, next_match_id))
+                UPDATE matches SET home_code = $1, away_code = $2, home_team = $3, away_team = $4 WHERE id = $5 AND tournament_id = $6
+            """, (wa, wb, home_name, away_name, next_match_id, tournament_id))
             resolved.append({"id": next_match_id, "home": wa, "away": wb,
                              "home_name": home_name, "away_name": away_name})
 

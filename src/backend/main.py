@@ -22,6 +22,7 @@ from src.backend.routes.matches import router as matches_router
 from src.backend.routes.simulation import router as simulation_router
 from src.backend.routes.squads import router as squads_router
 from src.backend.routes.stats import router as stats_router
+from src.backend.routes.tournaments import router as tournaments_router
 
 logger = logging.getLogger("wc-simulator")
 
@@ -87,6 +88,7 @@ app.add_middleware(NoCacheStaticMiddleware)
 
 # ─── API routes under /api/v1 ───
 app.include_router(tournament_router, prefix="/api/v1")
+app.include_router(tournaments_router, prefix="/api/v1")
 app.include_router(data_router, prefix="/api/v1")
 app.include_router(matches_router, prefix="/api/v1")
 app.include_router(simulation_router, prefix="/api/v1")
