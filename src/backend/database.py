@@ -123,15 +123,15 @@ CREATE TABLE IF NOT EXISTS group_standings (
     PRIMARY KEY (country_code, group_letter)
 );
 
--- ─── Shared simulations (user snapshots for sharing) ───
-CREATE TABLE IF NOT EXISTS shared_simulations (
-    slug TEXT PRIMARY KEY,
-    name TEXT NOT NULL DEFAULT '',
-    author TEXT NOT NULL DEFAULT '',
-    data JSONB NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW()
+-- ─── Simulations ───
+CREATE TABLE IF NOT EXISTS simulations (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'created'
+        CHECK(status IN ('created','running','completed')),
+    description TEXT
 );
-CREATE INDEX IF NOT EXISTS idx_shared_sims_created ON shared_simulations(created_at DESC);
 
 -- ─── Squad selections ───
 CREATE TABLE IF NOT EXISTS squad_selections (
@@ -242,107 +242,77 @@ async def init_db():
             print("[DB] PostgreSQL schema created")
         else:
             print("[DB] PostgreSQL schema already exists, skipping")
-            # Migrate: drop old tables from failed tournament_id migration + old simulations
-            await _cleanup_old_tables(conn)
-            # Ensure shared_simulations table exists
-            await conn.execute("""
-                CREATE TABLE IF NOT EXISTS shared_simulations (
-                    slug TEXT PRIMARY KEY,
-                    name TEXT NOT NULL DEFAULT '',
-                    author TEXT NOT NULL DEFAULT '',
-                    data JSONB NOT NULL,
-                    created_at TIMESTAMPTZ DEFAULT NOW()
-                )
-            """)
-            await conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_shared_sims_created ON shared_simulations(created_at DESC)"
-            )
+            # One-time cleanup: remove remnants from failed tournament_id migration
+            await _cleanup_tournament_migration(conn)
 
 
-async def _cleanup_old_tables(conn):
-    """Remove remnants from the failed tournament_id migration attempt."""
+async def _cleanup_tournament_migration(conn):
+    """Remove tournament_id columns and tournaments table if they exist.
+    Safe to call multiple times — only acts if remnants are found."""
     has_tournaments = await conn.fetchval(
         "SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_name = 'tournaments')"
     )
     if not has_tournaments:
-        # No migration remnants, just drop old simulations table
-        await conn.execute("DROP TABLE IF EXISTS simulations")
         return
 
     print("[DB] Cleaning up failed tournament_id migration...")
 
-    # 1. Drop all FK constraints that reference tournament_id or tournaments table
-    #    Work from leaf tables inward to avoid dependency issues
-    tables_with_tid = []
+    # Drop all FK constraints on affected tables before dropping columns
     for table in ('player_match_stats', 'matches', 'matchdays',
                   'group_standings', 'squad_selections', 'squad_stats'):
         has_tid = await conn.fetchval(
             "SELECT EXISTS(SELECT 1 FROM information_schema.columns "
             "WHERE table_name=$1 AND column_name='tournament_id')", table
         )
-        if has_tid:
-            tables_with_tid.append(table)
-
-    # Drop ALL foreign key constraints on affected tables (we'll let the schema re-create them)
-    for table in tables_with_tid:
-        fks = await conn.fetch("""
-            SELECT constraint_name FROM information_schema.table_constraints
-            WHERE table_name = $1 AND constraint_type = 'FOREIGN KEY'
-        """, table)
+        if not has_tid:
+            continue
+        # Drop ALL foreign keys on this table (we restore originals below)
+        fks = await conn.fetch(
+            "SELECT constraint_name FROM information_schema.table_constraints "
+            "WHERE table_name = $1 AND constraint_type = 'FOREIGN KEY'", table
+        )
         for fk in fks:
             await conn.execute(f"ALTER TABLE {table} DROP CONSTRAINT IF EXISTS {fk['constraint_name']}")
-
-    # 2. Drop tournament_id columns
-    for table in tables_with_tid:
-        await conn.execute(f"ALTER TABLE {table} DROP COLUMN IF EXISTS tournament_id")
+        # Drop the column
+        await conn.execute(f"ALTER TABLE {table} DROP COLUMN tournament_id")
         print(f"[DB]   Removed tournament_id from {table}")
 
-    # 3. Restore original primary keys (the migration changed them to composites)
-    # matchdays: should be (id) not (id, tournament_id)
-    has_matchdays_pk = await conn.fetchval(
-        "SELECT EXISTS(SELECT 1 FROM pg_constraint WHERE conname='matchdays_pkey')"
-    )
-    if not has_matchdays_pk:
-        await conn.execute("ALTER TABLE matchdays ADD PRIMARY KEY (id)")
+    # Restore original primary keys if missing (migration changed them to composites)
+    for table, pk_cols in [
+        ('matchdays', 'id'),
+        ('matches', 'id'),
+        ('group_standings', 'country_code, group_letter'),
+        ('squad_selections', 'country_code, player_id'),
+        ('squad_stats', 'country_code'),
+    ]:
+        has_pk = await conn.fetchval(
+            "SELECT EXISTS(SELECT 1 FROM pg_constraint WHERE conname=$1)",
+            f"{table}_pkey"
+        )
+        if not has_pk:
+            await conn.execute(f"ALTER TABLE {table} ADD PRIMARY KEY ({pk_cols})")
+            print(f"[DB]   Restored PK on {table}")
 
-    # matches: should be (id) not (id, tournament_id)
-    has_matches_pk = await conn.fetchval(
-        "SELECT EXISTS(SELECT 1 FROM pg_constraint WHERE conname='matches_pkey')"
-    )
-    if not has_matches_pk:
-        await conn.execute("ALTER TABLE matches ADD PRIMARY KEY (id)")
+    # Restore original FKs using DO blocks (idempotent)
+    fk_defs = [
+        ('matches', 'matches_matchday_id_fkey', 'FOREIGN KEY (matchday_id) REFERENCES matchdays(id)'),
+        ('player_match_stats', 'player_match_stats_match_id_fkey', 'FOREIGN KEY (match_id) REFERENCES matches(id)'),
+        ('player_match_stats', 'player_match_stats_player_id_fkey', 'FOREIGN KEY (player_id) REFERENCES players(id)'),
+        ('group_standings', 'group_standings_country_code_fkey', 'FOREIGN KEY (country_code) REFERENCES countries(code)'),
+        ('squad_selections', 'squad_selections_country_code_fkey', 'FOREIGN KEY (country_code) REFERENCES countries(code)'),
+        ('squad_selections', 'squad_selections_player_id_fkey', 'FOREIGN KEY (player_id) REFERENCES players(id)'),
+        ('squad_stats', 'squad_stats_country_code_fkey', 'FOREIGN KEY (country_code) REFERENCES countries(code)'),
+    ]
+    for table, name, definition in fk_defs:
+        await conn.execute(f"""
+            DO $$ BEGIN
+                IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='{name}') THEN
+                    ALTER TABLE {table} ADD CONSTRAINT {name} {definition};
+                END IF;
+            END $$
+        """)
 
-    # Restore FK: matches.matchday_id → matchdays.id
-    await conn.execute("""
-        DO $$ BEGIN
-            IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='matches_matchday_id_fkey') THEN
-                ALTER TABLE matches ADD CONSTRAINT matches_matchday_id_fkey
-                    FOREIGN KEY (matchday_id) REFERENCES matchdays(id);
-            END IF;
-        END $$
-    """)
-
-    # Restore FK: player_match_stats.match_id → matches.id
-    await conn.execute("""
-        DO $$ BEGIN
-            IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='player_match_stats_match_id_fkey') THEN
-                ALTER TABLE player_match_stats ADD CONSTRAINT player_match_stats_match_id_fkey
-                    FOREIGN KEY (match_id) REFERENCES matches(id);
-            END IF;
-        END $$
-    """)
-
-    # Restore FK: player_match_stats.player_id → players.id
-    await conn.execute("""
-        DO $$ BEGIN
-            IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='player_match_stats_player_id_fkey') THEN
-                ALTER TABLE player_match_stats ADD CONSTRAINT player_match_stats_player_id_fkey
-                    FOREIGN KEY (player_id) REFERENCES players(id);
-            END IF;
-        END $$
-    """)
-
-    # Restore UNIQUE on player_match_stats(player_id, match_id)
+    # Restore UNIQUE on player_match_stats
     await conn.execute("""
         DO $$ BEGIN
             IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='player_match_stats_player_id_match_id_key') THEN
@@ -352,67 +322,14 @@ async def _cleanup_old_tables(conn):
         END $$
     """)
 
-    # group_standings: PK should be (country_code, group_letter)
-    has_gs_pk = await conn.fetchval(
-        "SELECT EXISTS(SELECT 1 FROM pg_constraint WHERE conname='group_standings_pkey')"
-    )
-    if not has_gs_pk:
-        await conn.execute("ALTER TABLE group_standings ADD PRIMARY KEY (country_code, group_letter)")
-    await conn.execute("""
-        DO $$ BEGIN
-            IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='group_standings_country_code_fkey') THEN
-                ALTER TABLE group_standings ADD CONSTRAINT group_standings_country_code_fkey
-                    FOREIGN KEY (country_code) REFERENCES countries(code);
-            END IF;
-        END $$
-    """)
-
-    # squad_selections: PK should be (country_code, player_id)
-    has_ss_pk = await conn.fetchval(
-        "SELECT EXISTS(SELECT 1 FROM pg_constraint WHERE conname='squad_selections_pkey')"
-    )
-    if not has_ss_pk:
-        await conn.execute("ALTER TABLE squad_selections ADD PRIMARY KEY (country_code, player_id)")
-    await conn.execute("""
-        DO $$ BEGIN
-            IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='squad_selections_country_code_fkey') THEN
-                ALTER TABLE squad_selections ADD CONSTRAINT squad_selections_country_code_fkey
-                    FOREIGN KEY (country_code) REFERENCES countries(code);
-            END IF;
-        END $$
-    """)
-    await conn.execute("""
-        DO $$ BEGIN
-            IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='squad_selections_player_id_fkey') THEN
-                ALTER TABLE squad_selections ADD CONSTRAINT squad_selections_player_id_fkey
-                    FOREIGN KEY (player_id) REFERENCES players(id);
-            END IF;
-        END $$
-    """)
-
-    # squad_stats: PK should be (country_code)
-    has_sqst_pk = await conn.fetchval(
-        "SELECT EXISTS(SELECT 1 FROM pg_constraint WHERE conname='squad_stats_pkey')"
-    )
-    if not has_sqst_pk:
-        await conn.execute("ALTER TABLE squad_stats ADD PRIMARY KEY (country_code)")
-    await conn.execute("""
-        DO $$ BEGIN
-            IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='squad_stats_country_code_fkey') THEN
-                ALTER TABLE squad_stats ADD CONSTRAINT squad_stats_country_code_fkey
-                    FOREIGN KEY (country_code) REFERENCES countries(code);
-            END IF;
-        END $$
-    """)
-
-    # 4. Drop tournaments table and old simulations table
+    # Drop tournaments table and cleanup indexes
     await conn.execute("DROP TABLE IF EXISTS tournaments CASCADE")
-    await conn.execute("DROP TABLE IF EXISTS simulations")
-    # Drop indexes from old migration
+    await conn.execute("DROP TABLE IF EXISTS shared_simulations CASCADE")
     await conn.execute("DROP INDEX IF EXISTS idx_matches_tournament")
     await conn.execute("DROP INDEX IF EXISTS idx_pms_tournament")
+    await conn.execute("DROP INDEX IF EXISTS idx_shared_sims_created")
 
-    print("[DB] Migration cleanup complete — schema restored to original")
+    print("[DB] Migration cleanup complete — original schema restored")
 
 
 async def close_pool():

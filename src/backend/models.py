@@ -127,6 +127,19 @@ class GroupStandingOut(BaseModel):
 
 # ─── Simulation ───
 
+class SimulationCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+
+
+class SimulationOut(BaseModel):
+    id: str
+    name: str
+    created_at: str
+    status: str
+    description: Optional[str] = None
+
+
 class SimulateMatchesIn(BaseModel):
     match_ids: list[str] = []
     phase: Optional[str] = None
