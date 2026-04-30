@@ -281,6 +281,15 @@ async def init_db():
         await _ensure_canonical_tournament(conn)
 
 
+async def _add_fk_if_not_exists(conn, table: str, constraint_name: str, ddl: str):
+    """Add a FK constraint only if it doesn't already exist (idempotent)."""
+    exists = await conn.fetchval(
+        "SELECT EXISTS(SELECT 1 FROM pg_constraint WHERE conname = $1)", constraint_name
+    )
+    if not exists:
+        await conn.execute(ddl)
+
+
 async def _migrate_to_tournaments(conn: asyncpg.Connection):
     """One-time migration: add tournaments table and tournament_id columns
     to existing tables. Assigns all existing data to tournament_id=1."""
@@ -318,6 +327,19 @@ async def _migrate_to_tournaments(conn: asyncpg.Connection):
     # 4. Migrate each table: add tournament_id column, update PKs
     # We need to drop and re-create constraints, so we do this carefully
 
+    # -- STEP A: Drop ALL foreign keys that reference tables we'll modify --
+    # This avoids "dependent objects still exist" errors when dropping PKs
+    for table in ('player_match_stats', 'matches'):
+        fks = await conn.fetch("""
+            SELECT constraint_name FROM information_schema.table_constraints
+            WHERE table_name=$1 AND constraint_type='FOREIGN KEY'
+        """, table)
+        for fk in fks:
+            await conn.execute(f"ALTER TABLE {table} DROP CONSTRAINT IF EXISTS {fk['constraint_name']}")
+
+    # Drop unique constraint on player_match_stats
+    await conn.execute("ALTER TABLE player_match_stats DROP CONSTRAINT IF EXISTS player_match_stats_player_id_match_id_key")
+
     # -- matchdays: drop PK, add column, create new composite PK --
     has_tid = await conn.fetchval(
         "SELECT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_name='matchdays' AND column_name='tournament_id')"
@@ -328,44 +350,44 @@ async def _migrate_to_tournaments(conn: asyncpg.Connection):
         await conn.execute("ALTER TABLE matchdays ADD PRIMARY KEY (id, tournament_id)")
         await conn.execute("ALTER TABLE matchdays ADD FOREIGN KEY (tournament_id) REFERENCES tournaments(id) ON DELETE CASCADE")
 
-    # -- matches: drop PK, drop old FK, add column, create new PK + FK --
+    # -- matches: drop PK, add column, create new PK + FK --
     has_tid = await conn.fetchval(
         "SELECT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_name='matches' AND column_name='tournament_id')"
     )
     if not has_tid:
-        # Drop FK to matchdays first
-        fks = await conn.fetch("""
-            SELECT constraint_name FROM information_schema.table_constraints
-            WHERE table_name='matches' AND constraint_type='FOREIGN KEY'
-        """)
-        for fk in fks:
-            await conn.execute(f"ALTER TABLE matches DROP CONSTRAINT IF EXISTS {fk['constraint_name']}")
         await conn.execute("ALTER TABLE matches DROP CONSTRAINT IF EXISTS matches_pkey")
         await conn.execute("ALTER TABLE matches ADD COLUMN tournament_id INTEGER NOT NULL DEFAULT 1")
         await conn.execute("ALTER TABLE matches ADD PRIMARY KEY (id, tournament_id)")
-        await conn.execute("ALTER TABLE matches ADD FOREIGN KEY (matchday_id, tournament_id) REFERENCES matchdays(id, tournament_id) ON DELETE CASCADE")
-        await conn.execute("ALTER TABLE matches ADD FOREIGN KEY (tournament_id) REFERENCES tournaments(id) ON DELETE CASCADE")
-        await conn.execute("CREATE INDEX IF NOT EXISTS idx_matches_tournament ON matches(tournament_id)")
 
-    # -- player_match_stats: drop unique, add column, create new unique + FK --
+    # Re-create matches FKs pointing to new composite keys
+    await _add_fk_if_not_exists(conn, 'matches', 'matches_matchday_tid_fkey',
+        "ALTER TABLE matches ADD CONSTRAINT matches_matchday_tid_fkey FOREIGN KEY (matchday_id, tournament_id) REFERENCES matchdays(id, tournament_id) ON DELETE CASCADE")
+    await _add_fk_if_not_exists(conn, 'matches', 'matches_tournament_id_fkey',
+        "ALTER TABLE matches ADD CONSTRAINT matches_tournament_id_fkey FOREIGN KEY (tournament_id) REFERENCES tournaments(id) ON DELETE CASCADE")
+    await conn.execute("CREATE INDEX IF NOT EXISTS idx_matches_tournament ON matches(tournament_id)")
+
+    # -- player_match_stats: add column, create new unique + FK --
     has_tid = await conn.fetchval(
         "SELECT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_name='player_match_stats' AND column_name='tournament_id')"
     )
     if not has_tid:
-        # Drop old unique and FK
-        await conn.execute("ALTER TABLE player_match_stats DROP CONSTRAINT IF EXISTS player_match_stats_player_id_match_id_key")
-        fks = await conn.fetch("""
-            SELECT constraint_name FROM information_schema.table_constraints
-            WHERE table_name='player_match_stats' AND constraint_type='FOREIGN KEY'
-        """)
-        for fk in fks:
-            await conn.execute(f"ALTER TABLE player_match_stats DROP CONSTRAINT IF EXISTS {fk['constraint_name']}")
         await conn.execute("ALTER TABLE player_match_stats ADD COLUMN tournament_id INTEGER NOT NULL DEFAULT 1")
-        await conn.execute("ALTER TABLE player_match_stats ADD CONSTRAINT pms_unique_player_match_tid UNIQUE(player_id, match_id, tournament_id)")
-        await conn.execute("ALTER TABLE player_match_stats ADD FOREIGN KEY (match_id, tournament_id) REFERENCES matches(id, tournament_id) ON DELETE CASCADE")
-        await conn.execute("ALTER TABLE player_match_stats ADD FOREIGN KEY (tournament_id) REFERENCES tournaments(id) ON DELETE CASCADE")
-        await conn.execute("ALTER TABLE player_match_stats ADD FOREIGN KEY (player_id) REFERENCES players(id)")
-        await conn.execute("CREATE INDEX IF NOT EXISTS idx_pms_tournament ON player_match_stats(tournament_id)")
+
+    # Re-create player_match_stats constraints
+    await conn.execute("""
+        DO $$ BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'pms_unique_player_match_tid') THEN
+                ALTER TABLE player_match_stats ADD CONSTRAINT pms_unique_player_match_tid UNIQUE(player_id, match_id, tournament_id);
+            END IF;
+        END $$
+    """)
+    await _add_fk_if_not_exists(conn, 'player_match_stats', 'pms_match_tid_fkey',
+        "ALTER TABLE player_match_stats ADD CONSTRAINT pms_match_tid_fkey FOREIGN KEY (match_id, tournament_id) REFERENCES matches(id, tournament_id) ON DELETE CASCADE")
+    await _add_fk_if_not_exists(conn, 'player_match_stats', 'pms_tournament_id_fkey',
+        "ALTER TABLE player_match_stats ADD CONSTRAINT pms_tournament_id_fkey FOREIGN KEY (tournament_id) REFERENCES tournaments(id) ON DELETE CASCADE")
+    await _add_fk_if_not_exists(conn, 'player_match_stats', 'pms_player_id_fkey',
+        "ALTER TABLE player_match_stats ADD CONSTRAINT pms_player_id_fkey FOREIGN KEY (player_id) REFERENCES players(id)")
+    await conn.execute("CREATE INDEX IF NOT EXISTS idx_pms_tournament ON player_match_stats(tournament_id)")
 
     # -- group_standings --
     has_tid = await conn.fetchval(
@@ -381,8 +403,10 @@ async def _migrate_to_tournaments(conn: asyncpg.Connection):
             await conn.execute(f"ALTER TABLE group_standings DROP CONSTRAINT IF EXISTS {fk['constraint_name']}")
         await conn.execute("ALTER TABLE group_standings ADD COLUMN tournament_id INTEGER NOT NULL DEFAULT 1")
         await conn.execute("ALTER TABLE group_standings ADD PRIMARY KEY (country_code, group_letter, tournament_id)")
-        await conn.execute("ALTER TABLE group_standings ADD FOREIGN KEY (tournament_id) REFERENCES tournaments(id) ON DELETE CASCADE")
-        await conn.execute("ALTER TABLE group_standings ADD FOREIGN KEY (country_code) REFERENCES countries(code)")
+    await _add_fk_if_not_exists(conn, 'group_standings', 'gs_tournament_id_fkey',
+        "ALTER TABLE group_standings ADD CONSTRAINT gs_tournament_id_fkey FOREIGN KEY (tournament_id) REFERENCES tournaments(id) ON DELETE CASCADE")
+    await _add_fk_if_not_exists(conn, 'group_standings', 'gs_country_code_fkey',
+        "ALTER TABLE group_standings ADD CONSTRAINT gs_country_code_fkey FOREIGN KEY (country_code) REFERENCES countries(code)")
 
     # -- squad_selections --
     has_tid = await conn.fetchval(
@@ -398,9 +422,12 @@ async def _migrate_to_tournaments(conn: asyncpg.Connection):
             await conn.execute(f"ALTER TABLE squad_selections DROP CONSTRAINT IF EXISTS {fk['constraint_name']}")
         await conn.execute("ALTER TABLE squad_selections ADD COLUMN tournament_id INTEGER NOT NULL DEFAULT 1")
         await conn.execute("ALTER TABLE squad_selections ADD PRIMARY KEY (country_code, player_id, tournament_id)")
-        await conn.execute("ALTER TABLE squad_selections ADD FOREIGN KEY (tournament_id) REFERENCES tournaments(id) ON DELETE CASCADE")
-        await conn.execute("ALTER TABLE squad_selections ADD FOREIGN KEY (country_code) REFERENCES countries(code)")
-        await conn.execute("ALTER TABLE squad_selections ADD FOREIGN KEY (player_id) REFERENCES players(id)")
+    await _add_fk_if_not_exists(conn, 'squad_selections', 'ss_tournament_id_fkey',
+        "ALTER TABLE squad_selections ADD CONSTRAINT ss_tournament_id_fkey FOREIGN KEY (tournament_id) REFERENCES tournaments(id) ON DELETE CASCADE")
+    await _add_fk_if_not_exists(conn, 'squad_selections', 'ss_country_code_fkey',
+        "ALTER TABLE squad_selections ADD CONSTRAINT ss_country_code_fkey FOREIGN KEY (country_code) REFERENCES countries(code)")
+    await _add_fk_if_not_exists(conn, 'squad_selections', 'ss_player_id_fkey',
+        "ALTER TABLE squad_selections ADD CONSTRAINT ss_player_id_fkey FOREIGN KEY (player_id) REFERENCES players(id)")
 
     # -- squad_stats --
     has_tid = await conn.fetchval(
@@ -416,8 +443,10 @@ async def _migrate_to_tournaments(conn: asyncpg.Connection):
             await conn.execute(f"ALTER TABLE squad_stats DROP CONSTRAINT IF EXISTS {fk['constraint_name']}")
         await conn.execute("ALTER TABLE squad_stats ADD COLUMN tournament_id INTEGER NOT NULL DEFAULT 1")
         await conn.execute("ALTER TABLE squad_stats ADD PRIMARY KEY (country_code, tournament_id)")
-        await conn.execute("ALTER TABLE squad_stats ADD FOREIGN KEY (tournament_id) REFERENCES tournaments(id) ON DELETE CASCADE")
-        await conn.execute("ALTER TABLE squad_stats ADD FOREIGN KEY (country_code) REFERENCES countries(code)")
+    await _add_fk_if_not_exists(conn, 'squad_stats', 'sqst_tournament_id_fkey',
+        "ALTER TABLE squad_stats ADD CONSTRAINT sqst_tournament_id_fkey FOREIGN KEY (tournament_id) REFERENCES tournaments(id) ON DELETE CASCADE")
+    await _add_fk_if_not_exists(conn, 'squad_stats', 'sqst_country_code_fkey',
+        "ALTER TABLE squad_stats ADD CONSTRAINT sqst_country_code_fkey FOREIGN KEY (country_code) REFERENCES countries(code)")
 
 
 async def _ensure_canonical_tournament(conn: asyncpg.Connection):
