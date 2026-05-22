@@ -1,0 +1,26 @@
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.db
+.env
+dist/
+build/
+*.egg-info/
+.pytest_cache/
+
+# EFEM player data (download separately, not in git)
+data/raw/efeme/*.json
+data/raw/efeme.tar.gz
+data/raw/efeme/import_status.json
+data/raw/efeme/README.md
+
+# Old raw player data (not needed with EFEM)
+data/raw/players/
+data/raw/players.json.gz
+data/raw/fifa-world-cup-2026*
+
+# Temp scripts
+analyze_conflicts.py
+check_aliases.py

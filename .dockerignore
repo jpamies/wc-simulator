@@ -1,0 +1,13 @@
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.db
+.git/
+.github/
+docs/
+tests/
+*.md
+.gitignore
+.dockerignore
+Makefile

@@ -1,0 +1,20 @@
+FROM python:3.11-slim
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY src/ src/
+COPY data/tournament/ data/tournament/
+COPY scripts/ scripts/
+
+# Download EFEM data from GitHub Release
+RUN mkdir -p data/raw/efeme && \
+    curl -sL https://github.com/jpamies/wc-simulator/releases/download/full-db-v1/efeme.tar.gz | \
+    tar xz -C data/raw/efeme
+
+ENV PYTHONUNBUFFERED=1
+
+CMD ["python", "-c", "import asyncio; from src.backend.database import init_db; from src.backend.services.data_import import import_all; asyncio.run(init_db()); asyncio.run(import_all())"]

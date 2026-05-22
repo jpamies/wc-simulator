@@ -1,0 +1,83 @@
+{
+  "tournament": "FIFA World Cup 2026",
+  "format": "48 teams, 12 groups of 4",
+  "hosts": [
+    "USA",
+    "Mexico",
+    "Canada"
+  ],
+  "groups": {
+    "A": [
+      "Czechia",
+      "Korea Republic",
+      "Mexico",
+      "South Africa"
+    ],
+    "B": [
+      "Bosnia-Herzegovina",
+      "Canada",
+      "Qatar",
+      "Switzerland"
+    ],
+    "C": [
+      "Brazil",
+      "Haiti",
+      "Morocco",
+      "Scotland"
+    ],
+    "D": [
+      "Australia",
+      "Paraguay",
+      "Türkiye",
+      "USA"
+    ],
+    "E": [
+      "Curaçao",
+      "Côte d'Ivoire",
+      "Ecuador",
+      "Germany"
+    ],
+    "F": [
+      "Japan",
+      "Netherlands",
+      "Sweden",
+      "Tunisia"
+    ],
+    "G": [
+      "Belgium",
+      "Egypt",
+      "IR Iran",
+      "New Zealand"
+    ],
+    "H": [
+      "Cabo Verde",
+      "Saudi Arabia",
+      "Spain",
+      "Uruguay"
+    ],
+    "I": [
+      "France",
+      "Iraq",
+      "Norway",
+      "Senegal"
+    ],
+    "J": [
+      "Algeria",
+      "Argentina",
+      "Austria",
+      "Jordan"
+    ],
+    "K": [
+      "Colombia",
+      "Congo DR",
+      "Portugal",
+      "Uzbekistan"
+    ],
+    "L": [
+      "Croatia",
+      "England",
+      "Ghana",
+      "Panama"
+    ]
+  }
+}
